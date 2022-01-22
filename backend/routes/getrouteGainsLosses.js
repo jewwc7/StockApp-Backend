@@ -50,7 +50,7 @@ router.post("/addappuser", async (req, res, err) => {
   }
 });
 
-//default stock list array, for some reason the for each runs duplicate values
+//Not in use in front enddefault stock list array, for some reason the for each runs duplicate values
 router.post("/stocklist", async (req, res, err) => {
   const { _id } = req.body;
   console.log(`Adding default stocks to ${req.body.userName} array`);
@@ -86,7 +86,9 @@ router.post("/singlestock", async (req, res, err) => {
       `https://www.alphavantage.co/query?function=OVERVIEW&symbol=${Symbol}&apikey=EUIY8ECEM4DJSHYU`
     );
     const companyOverview = await companyOverviewRequest.data;
-    const prices = [...getPrice(companyIntraday["Time Series (30min)"])]; //move prices to an array
+    const prices = [
+      ...getPrice(companyIntraday["Time Series (30min)"]),
+    ].reverse(); //move prices to an array, and reverse so beginning day data shows first
     const stockObj = {
       Symbol: companyQuote["Global Quote"]["01. symbol"],
       currentPrice: companyQuote["Global Quote"]["05. price"],

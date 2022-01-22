@@ -12,9 +12,7 @@ const cors = require("cors");
 
 //Pulling in mongodata
 const { MongoClient } = require("mongodb"); //don't forget to add the .MongoClient or use destructing example {MongoClient} = require('mongodb');
-const uri =
-  "mongodb+srv://jaywheel:Kcgame24@cluster0.lz4kl.mongodb.net/test?retryWrites=true&w=majority"; //getting data for my cluster, will always be used. Used Atlas connect via driver.
-const client = new MongoClient(uri, { useUnifiedTopology: true }); //initiating the MongoClient class, this will always be used
+const uri = `mongodb+srv://${process.env.DB_USERNAME}:${process.env.DB_PASSWORD}@cluster0.lz4kl.mongodb.net/test?retryWrites=true&w=majority`; //getting data for my cluster, will always be used. Used Atlas connect via driver.
 
 app.use(cors());
 app.use("/", (req, res, next, err) => {
