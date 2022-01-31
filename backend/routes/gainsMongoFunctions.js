@@ -99,6 +99,43 @@ async function updateCommunityArr(collection, data) {
     console.log(error);
   }
 }
+///takes a config object with parameters as props. Adding user to a collections objects arrName
+async function addUsertoCommunityArr({
+  collection,
+  competitionId,
+  arrName,
+  data,
+}) {
+  console.log(data);
+  //console.log("I am the data", data);
+  try {
+    await client.connect();
+    let updatedFundsArr = client
+      .db("GainsAndLosses")
+      .collection(collection)
+      .findOneAndUpdate(
+        { _id: competitionId },
+        { $push: { [arrName]: { $each: [...data] } } },
+        //   { upsert: true }, //no upsert because if competition deleted will create a random momgoobject
+        { returnNewDocument: true }
+      ); //find user by ID
+    return updatedFundsArr ? true : false; //if found data will be the object if not found will return null
+  } catch (error) {
+    console.log(error);
+  }
+}
+async function findData({ collection, id }) {
+  try {
+    await client.connect();
+    let foundData = client
+      .db("GainsAndLosses")
+      .collection(collection)
+      .findOne({ _id: ObjectId(id) }); //find user by ID
+    return foundData ? foundData : false; //if found data will be the object if not found will return null
+  } catch (error) {
+    console.log(error);
+  }
+}
 
 async function getQuote() {}
 
@@ -230,3 +267,5 @@ exports.addUserToDbAppUsers = addUserToDbAppUsers;
 exports.updateUserArr = updateUserArr;
 exports.updateCommunityArr = updateCommunityArr;
 exports.getCommunityData = getCommunityData;
+exports.addUsertoCommunityArr = addUsertoCommunityArr;
+exports.findData = findData;

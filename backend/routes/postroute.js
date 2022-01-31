@@ -22,6 +22,8 @@ const {
   addUserToDbAppUsers,
   updateUserArr,
   updateCommunityArr,
+  addUsertoCommunityArr,
+  findData,
 } = require("./gainsMongoFunctions");
 
 const { getQuote } = require("./apiFunctions");
@@ -100,16 +102,17 @@ router.post("/addcreatedfund", async (req, res, err) => {
   }
 });
 
+///add competition to creators arr, comminuty competition collection and also adds creator to the competitions joined players Arr property
 router.post("/addcompetition", async (req, res, err) => {
   /* investmentsAllowed , ["# of Investestments"] ,amount,,[" # of Investors"],  Length8*/
-  console.log(req.body);
-
-  const { Name, Length, Amount, createdByName, createdById } = req.body;
-  const investmentsAllowed = req.body["# of Investestments"];
+  // console.log(req.body);
+  const { Name, Length, Amount, createdByName, createdById, image } = req.body;
+  const investmentsAllowed = req.body["# of Investments"];
   const investorsAllowed = req.body["# of Investors"];
   const selectedFund = req.body["Selected Fund"];
-  res.send(true);
+  const mongoID = ObjectId(); //make ID here so I can use within multiple objects
   const competionObj = {
+    _id: mongoID,
     createdById: createdById,
     createdByName: createdByName,
     title: Name,
@@ -120,6 +123,7 @@ router.post("/addcompetition", async (req, res, err) => {
     length: Length,
     startsIn: 0,
   };
+
   try {
     const addedToUserComps = await updateUserArr(
       createdById,
@@ -129,7 +133,22 @@ router.post("/addcompetition", async (req, res, err) => {
     const addedCompCommunity = await updateCommunityArr("competitions", [
       competionObj,
     ]);
-    res.send("successful update");
+
+    const userObj = {
+      userId: createdById, //joined players object
+      name: createdByName,
+      image: image,
+      fundInPlay: selectedFund,
+      competitionId: mongoID,
+    };
+    const config = {
+      collection: "competitions",
+      competitionId: mongoID,
+      arrName: "joinedInvestors",
+      data: [userObj],
+    };
+    const creatorToCommunityFund = await addUsertoCommunityArr(config);
+    res.send(mongoID);
   } catch (error) {
     console.log(error);
     res.status(400).send(error);
@@ -213,10 +232,11 @@ router.post("/addfollower", async (req, res, err) => {
 });
 
 router.post("/sendinvitation", async (req, res, err) => {
-  console.log(`A request to ivnite ${req.body.id}`); //this works, just work on the front end
-  const userId = req.body.id;
+  console.log(`A request to invite ${req.body.invitee}`); //this works, just work on the front end
+  const inviteeId = req.body.invitee;
+
   try {
-    const addedInvitation = await updateUserArr(userId, "messages", [
+    const addedInvitation = await updateUserArr(inviteeId, "messages", [
       { ...req.body, sentDate: today },
     ]);
     res.send(addedInvitation);
@@ -226,4 +246,45 @@ router.post("/sendinvitation", async (req, res, err) => {
   }
 });
 
+router.post("/acceptinvitation", async (req, res, err) => {
+  //req.body has the competitionId and the userId(which is the creatorId)
+  console.log(`Thanks for Joining ${req.body.name}`); //this works, just work on the front end
+  const competitionId = ObjectId(req.body.competitionId);
+  const creatorId = ObjectId(req.body.userId);
+  console.log(competitionId);
+  const config = {
+    collection: "competitions",
+    competitionId,
+    arrName: "joinedInvestors",
+    data: [req.body],
+  };
+  const dataConfig = {
+    collection: "competitions",
+    id: competitionId,
+  };
+
+  try {
+    const acceptedInvitation = await addUsertoCommunityArr(config); //add accetptor to the competition
+    const competition = await findData(dataConfig); //get competiiton
+    const competitionCreatorId = await competition.createdById; //get the creator of competitions data
+    const sendMsgtoCreator = await updateUserArr(
+      //send acceptedInvitation to the competition creator
+      competitionCreatorId,
+      "messages",
+      [{ ...req.body, acceptDate: today }]
+    );
+    res.send(true);
+  } catch (error) {
+    console.log(error);
+    res.send(error);
+  }
+});
+
+var prevMonday = new Date();
+console.log(
+  prevMonday.setDate(prevMonday.getDate() - ((prevMonday.getDay() + 6) % 7))
+);
+
+//const date = new Date("2022-01-28 19:00:00");
+console.log(date);
 module.exports = router;
