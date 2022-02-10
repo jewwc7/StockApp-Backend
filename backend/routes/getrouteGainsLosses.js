@@ -18,6 +18,7 @@ const {
   addUserToDbAppUsers,
   updateUserArr,
   getCommunityData,
+  findData,
 } = require("./gainsMongoFunctions");
 //const { default: axios } = require("axios");
 function getPrice(priceObject) {
@@ -27,9 +28,9 @@ function getPrice(priceObject) {
 
 router.post("/login", async (req, res, err) => {
   console.log(`A login request has been made by ${req.body.userName}`);
-  const { userName } = req.body;
+  const { name } = req.body; ///will nee
   try {
-    const loginSuccessful = await findUser(userName);
+    const loginSuccessful = await findUser(name);
     if (!loginSuccessful) return res.send(false);
     res.send(loginSuccessful);
   } catch (error) {
@@ -79,16 +80,31 @@ router.post("/singlestock", async (req, res, err) => {
       Symbol,
       null,
       null,
-      "30min"
+      "15min"
     );
     const companyQuote = await alpha.data.quote(Symbol);
     const companyOverviewRequest = await axios.get(
       `https://www.alphavantage.co/query?function=OVERVIEW&symbol=${Symbol}&apikey=EUIY8ECEM4DJSHYU`
     );
     const companyOverview = await companyOverviewRequest.data;
-    const prices = [
-      ...getPrice(companyIntraday["Time Series (30min)"]),
+    const keyArr = Object.keys(companyIntraday["Time Series (15min)"]);
+    const valueArr = Object.values(companyIntraday["Time Series (15min)"]);
+    function makePriceObj() {
+      //format object for the chart on the front end
+      const finalArr = valueArr.map((value, index) => {
+        return {
+          value: parseFloat(value["4. close"]),
+          timestamp: keyArr[index],
+        };
+      });
+      return finalArr;
+    }
+    const prices = makePriceObj().reverse();
+    /* const oldprices = [
+      ...getPrice(companyIntraday["Time Series (15min)"]),
     ].reverse(); //move prices to an array, and reverse so beginning day data shows first
+    console.log(prices); */
+
     const stockObj = {
       Symbol: companyQuote["Global Quote"]["01. symbol"],
       currentPrice: companyQuote["Global Quote"]["05. price"],
@@ -156,6 +172,51 @@ router.post("/getusers", async (req, res, err) => {
   } catch (error) {
     console.log(error);
     res.status(400).send(error);
+  }
+});
+
+router.post("/getcommunitycompetitions", async (req, res, err) => {
+  try {
+    const first50Competitions = await getCommunityData("competitions");
+    res.send(first50Competitions);
+  } catch (error) {
+    console.log(error);
+    res.send(error);
+  }
+});
+
+router.post("/getusercompetition", async (req, res, err) => {
+  console.log(req.body);
+  const config = {
+    collection: "competitions",
+    id: req.body.id,
+  };
+  try {
+    const competitionFound = await findData(config);
+    return competitionFound
+      ? res.send(competitionFound)
+      : console.log("not found");
+  } catch (error) {
+    console.log(error);
+    res.send(error);
+  }
+});
+
+router.post("/likedfunds", async (req, res, err) => {
+  console.log(req.body.id);
+  const config = {
+    collection: "funds",
+    id: req.body.id,
+  };
+  try {
+    const competitionFound = await findData(config);
+    console.log(competitionFound);
+    return competitionFound
+      ? res.send(competitionFound)
+      : console.log("not found");
+  } catch (error) {
+    console.log(error);
+    res.send(error);
   }
 });
 

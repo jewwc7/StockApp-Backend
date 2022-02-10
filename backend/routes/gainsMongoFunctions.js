@@ -20,10 +20,11 @@ async function addUserToDb(user) {
 }
 
 async function addUserToDbAppUsers(user) {
-  let { name } = user; //
+  let { email } = user;
+  console.log(email);
   await client.connect();
   let database = client.db("GainsAndLosses").collection("users");
-  let isDupe = await database.findOne({ name: name }); //find the user
+  let isDupe = await database.findOne({ email: email }); //find the user
   console.log(isDupe);
   if (isDupe) {
     return "THis is a duplicate";
@@ -114,7 +115,7 @@ async function addUsertoCommunityArr({
       .db("GainsAndLosses")
       .collection(collection)
       .findOneAndUpdate(
-        { _id: competitionId },
+        { _id: ObjectId(competitionId) },
         { $push: { [arrName]: { $each: [...data] } } },
         //   { upsert: true }, //no upsert because if competition deleted will create a random momgoobject
         { returnNewDocument: true }
@@ -124,6 +125,26 @@ async function addUsertoCommunityArr({
     console.log(error);
   }
 }
+
+//delete arr item that meets condition
+async function deleteFromUserArr({ userId, arr, condition }) {
+  try {
+    await client.connect();
+    let updatedUser = client
+      .db("GainsAndLosses")
+      .collection("users")
+      .findOneAndUpdate(
+        { _id: ObjectId(userId) }, //find user
+        { $pull: { [arr]: { _id: condition } } } //the _id is the competitions _id.delete the arr item that meets teh condition
+      );
+    return updatedUser;
+    //   db.profiles.updateOne( { _id: 1 }, { $pull: { votes: { $gte: 6 } } } )
+  } catch (error) {
+    console.log(error);
+    return error;
+  }
+}
+
 async function findData({ collection, id }) {
   try {
     await client.connect();
@@ -269,3 +290,4 @@ exports.updateCommunityArr = updateCommunityArr;
 exports.getCommunityData = getCommunityData;
 exports.addUsertoCommunityArr = addUsertoCommunityArr;
 exports.findData = findData;
+exports.deleteFromUserArr = deleteFromUserArr;

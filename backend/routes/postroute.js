@@ -24,10 +24,10 @@ const {
   updateCommunityArr,
   addUsertoCommunityArr,
   findData,
+  deleteFromUserArr,
 } = require("./gainsMongoFunctions");
-
 const { getQuote } = require("./apiFunctions");
-
+const { checkIfDupe } = require("./backendMyFunctions");
 const months = [
   "January",
   "February",
@@ -92,16 +92,17 @@ router.post("/addcreatedfund", async (req, res, err) => {
     const addedFund = await updateUserArr(createdById, "createdFunds", [
       { ...req.body, createDate: today },
     ]);
+
     const addedFundCommunity = await updateCommunityArr("funds", [
       { ...req.body, createDate: today },
     ]);
-    res.send(addedFund);
+    res.send("Updated");
   } catch (error) {
     console.log(error);
     res.status(400).send(error);
   }
 });
-
+//delete s
 ///add competition to creators arr, comminuty competition collection and also adds creator to the competitions joined players Arr property
 router.post("/addcompetition", async (req, res, err) => {
   /* investmentsAllowed , ["# of Investestments"] ,amount,,[" # of Investors"],  Length8*/
@@ -147,6 +148,9 @@ router.post("/addcompetition", async (req, res, err) => {
       arrName: "joinedInvestors",
       data: [userObj],
     };
+    const addToCreatorComps = await updateUserArr(createdById, "competitions", [
+      { id: mongoID, joinDate: today },
+    ]);
     const creatorToCommunityFund = await addUsertoCommunityArr(config);
     res.send(mongoID);
   } catch (error) {
@@ -246,11 +250,13 @@ router.post("/sendinvitation", async (req, res, err) => {
   }
 });
 
+///used when accepting invitation to competition or joining a competition
 router.post("/acceptinvitation", async (req, res, err) => {
   //req.body has the competitionId and the userId(which is the creatorId)
   console.log(`Thanks for Joining ${req.body.name}`); //this works, just work on the front end
-  const competitionId = ObjectId(req.body.competitionId);
-  const creatorId = ObjectId(req.body.userId);
+  const competitionId = req.body.competitionId;
+  const acceptorId = req.body.userId;
+  console.log(req.body);
   console.log(competitionId);
   const config = {
     collection: "competitions",
@@ -262,29 +268,87 @@ router.post("/acceptinvitation", async (req, res, err) => {
     collection: "competitions",
     id: competitionId,
   };
+  const deleteUserArrConfig = {
+    userId: acceptorId, //checking if equal to
+    arr: "messages",
+    condition: competitionId, //
+  };
 
   try {
-    const acceptedInvitation = await addUsertoCommunityArr(config); //add accetptor to the competition
+    const compeitition = await findData(dataConfig); //will find competition by ID(received in req.body)
+    const { joinedInvestors } = compeitition; //pull out the joinedInvestors Arr
+    const joinedInvestorsId = joinedInvestors.map(
+      (investor) => investor.userId
+    ); //map the id's
+    const isDuplicate = checkIfDupe(joinedInvestorsId, req.body.userId); //check if the joinerId is already in the array
+    /////
+    if (isDuplicate) {
+      res.send({ type: "fail", message: "Your already In the competition" });
+      return;
+    }
+    const acceptedInvitation = await addUsertoCommunityArr(config); //add acceptor to the competition
     const competition = await findData(dataConfig); //get competiiton
     const competitionCreatorId = await competition.createdById; //get the creator of competitions data
+    const deleteMsg = await deleteFromUserArr(deleteUserArrConfig);
+    const addToAcceptorsComp = updateUserArr(acceptorId, "competitions", [
+      {
+        id: competitionId,
+        joinDate: today,
+      },
+    ]);
     const sendMsgtoCreator = await updateUserArr(
       //send acceptedInvitation to the competition creator
       competitionCreatorId,
-      "messages",
+      "acceptedInvites",
       [{ ...req.body, acceptDate: today }]
     );
-    res.send(true);
+
+    res.send({ type: "success", message: "You've Joined!" });
   } catch (error) {
     console.log(error);
     res.send(error);
   }
 });
 
-var prevMonday = new Date();
-console.log(
-  prevMonday.setDate(prevMonday.getDate() - ((prevMonday.getDay() + 6) % 7))
-);
+router.post("/deletemsg", async (req, res, err) => {
+  //req.body has the competitionId and the userId(which is the creatorId)
+  console.log(req.body); //this works just need to match the payload from the front end
+  const deleteUserArrConfig = {
+    userId: req.body.userId, //checking if equal to
+    arr: "messages",
+    condition: req.body.competitionId, //
+  };
 
-//const date = new Date("2022-01-28 19:00:00");
-console.log(date);
+  try {
+    const deleteMsg = await deleteFromUserArr(deleteUserArrConfig);
+    res.send(deleteMsg);
+  } catch (error) {
+    console.log(error);
+    res.send(error);
+  }
+});
+
+router.post("/likefund", async (req, res, err) => {
+  //req.body has the competitionId and the userId(which is the creatorId)
+  console.log(req.body); //this works just need to match the payload from the front end
+  const config = {
+    collection: "funds",
+    competitionId: req.body.fundId,
+    arrName: "likes",
+    data: [req.body],
+  };
+
+  try {
+    const likedFund = await addUsertoCommunityArr(config);
+    const likedFundUser = await updateUserArr(req.body.likerId, "likedFunds", [
+      req.body.fundId,
+    ]);
+    //need to add to users likedFunds as well
+    res.send(likedFund);
+  } catch (error) {
+    console.log(error);
+    res.send(error);
+  }
+});
+
 module.exports = router;

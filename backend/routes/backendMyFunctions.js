@@ -56,6 +56,10 @@ const myFunctions = {
   isTrue: function (objectChecking, ifTrue, ifFalse) {
     return objectChecking ? ifTrue : ifFalse;
   },
+  checkIfDupe: function (arr, condition) {
+    if (arr.includes(condition)) return true;
+    return false;
+  },
 };
 
 const dummyArr = [
