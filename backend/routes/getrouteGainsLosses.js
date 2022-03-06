@@ -19,7 +19,13 @@ const {
   updateUserArr,
   getCommunityData,
   findData,
+  getMyFunds,
+  updateUserArrPractice,
+  updateUserArrPracticeTwo,
 } = require("./gainsMongoFunctions");
+const { myFunctions } = require("./backendMyFunctions");
+const { checkIfDupe, getPercentChange } = myFunctions;
+
 //const { default: axios } = require("axios");
 function getPrice(priceObject) {
   const prices = Object.values(priceObject);
@@ -27,10 +33,12 @@ function getPrice(priceObject) {
 }
 
 router.post("/login", async (req, res, err) => {
-  console.log(`A login request has been made by ${req.body.userName}`);
+  console.log(`A login request has been made by ${req.body.name}`);
   const { name } = req.body; ///will nee
   try {
     const loginSuccessful = await findUser(name);
+    delete loginSuccessful.newPassword; //delete password
+    console.log(loginSuccessful);
     if (!loginSuccessful) return res.send(false);
     res.send(loginSuccessful);
   } catch (error) {
@@ -70,8 +78,14 @@ router.post("/stocklist", async (req, res, err) => {
     res.status(400).send(error);
   }
 });
-
+///add date comparison here
 router.post("/singlestock", async (req, res, err) => {
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+
+  today.toDateString();
+  const localYesterday = yesterday.toLocaleDateString();
   const { Symbol } = req.body;
   if (!Symbol) Symbol = "AAPL";
   console.log(`${req.body.userName} requested ${Symbol}`);
@@ -80,35 +94,41 @@ router.post("/singlestock", async (req, res, err) => {
       Symbol,
       null,
       null,
-      "15min"
+      "5min"
     );
     const companyQuote = await alpha.data.quote(Symbol);
     const companyOverviewRequest = await axios.get(
       `https://www.alphavantage.co/query?function=OVERVIEW&symbol=${Symbol}&apikey=EUIY8ECEM4DJSHYU`
     );
     const companyOverview = await companyOverviewRequest.data;
-    const keyArr = Object.keys(companyIntraday["Time Series (15min)"]);
-    const valueArr = Object.values(companyIntraday["Time Series (15min)"]);
+    const keyArr = Object.keys(companyIntraday["Time Series (5min)"]);
+    const valueArr = Object.values(companyIntraday["Time Series (5min)"]);
     function makePriceObj() {
       //format object for the chart on the front end
-      const finalArr = valueArr.map((value, index) => {
-        return {
-          value: parseFloat(value["4. close"]),
-          timestamp: keyArr[index],
-        };
-      });
+      const finalArr = valueArr
+        .map((value, index) => {
+          const date = new Date(keyArr[index]).toLocaleDateString();
+          //only return data from yesterday
+          if (date < localYesterday) return false;
+          return {
+            value: parseFloat(value["4. close"]),
+            timestamp: keyArr[index],
+          };
+        })
+        .filter(Boolean);
       return finalArr;
     }
     const prices = makePriceObj().reverse();
-    /* const oldprices = [
-      ...getPrice(companyIntraday["Time Series (15min)"]),
-    ].reverse(); //move prices to an array, and reverse so beginning day data shows first
-    console.log(prices); */
-
+    const firstPrice = prices[0].value;
+    const lastPrice = prices[prices.length - 1].value;
+    console.log(firstPrice, lastPrice);
+    const percentChange = getPercentChange(firstPrice, lastPrice);
     const stockObj = {
       Symbol: companyQuote["Global Quote"]["01. symbol"],
-      currentPrice: companyQuote["Global Quote"]["05. price"],
-      percentChange: companyQuote["Global Quote"]["10. change percent"],
+      //  currentPrice: companyQuote["Global Quote"]["05. price"],
+      currentPrice: lastPrice,
+      percentChange,
+      // percentChange: companyQuote["Global Quote"]["10. change percent"],
       open: companyQuote["Global Quote"]["02. open"],
       companyOverview,
       prices, //all prices, array
@@ -154,6 +174,17 @@ router.post("/getcommunityfunds", async (req, res, err) => {
   }
 });
 
+router.post("/getmyfunds", async (req, res, err) => {
+  const userId = req.body.id;
+  try {
+    const communityFunds = await getMyFunds(userId);
+    res.send(communityFunds);
+  } catch (error) {
+    console.log(error);
+    res.send(error);
+  }
+});
+
 router.post("/getuserinfo", async (req, res, err) => {
   console.log(req.body.id);
   try {
@@ -186,16 +217,15 @@ router.post("/getcommunitycompetitions", async (req, res, err) => {
 });
 
 router.post("/getusercompetition", async (req, res, err) => {
-  console.log(req.body);
+  //console.log(req.body);
   const config = {
     collection: "competitions",
-    id: req.body.id,
+    id: req.body.id.toString(),
   };
   try {
     const competitionFound = await findData(config);
-    return competitionFound
-      ? res.send(competitionFound)
-      : console.log("not found");
+    console.log(competitionFound ? "not found" : "competition found");
+    return res.send(competitionFound);
   } catch (error) {
     console.log(error);
     res.send(error);
@@ -214,6 +244,29 @@ router.post("/likedfunds", async (req, res, err) => {
     return competitionFound
       ? res.send(competitionFound)
       : console.log("not found");
+  } catch (error) {
+    console.log(error);
+    res.send(error);
+  }
+});
+
+router.post("/practicedata", async (req, res, err) => {
+  try {
+    const communityFunds = await getCommunityData("practiceCompetition");
+    res.send(communityFunds);
+  } catch (error) {
+    console.log(error);
+    res.status(400).send(error);
+  }
+});
+
+router.post("/getmyfundspractice", async (req, res, err) => {
+  const userId = req.body.id;
+  try {
+    const communityFunds = await getMyFunds(userId);
+    communityFunds.map(async (fund, index) => {});
+    await updateUserArrPracticeTwo(userId, "createdFunds", [...communityFunds]);
+    res.send(communityFunds);
   } catch (error) {
     console.log(error);
     res.send(error);

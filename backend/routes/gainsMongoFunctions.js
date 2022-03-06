@@ -41,7 +41,7 @@ async function findUser(user) {
   let data = client
     .db("GainsAndLosses")
     .collection("users")
-    .findOne({ name: user }); //find the user by username
+    .findOne({ name: user }, { newPassword: 0 }); //find the user by username
   return data; //if found data will be the object if not found will return null
 }
 
@@ -83,21 +83,102 @@ async function updateUserArr(id, arrName, data) {
   }
 }
 
-async function updateCommunityArr(collection, data) {
-  let count = 0;
-  console.log(data);
-  //console.log("I am the data", data);
+async function updateUserArrPractice(id, arrName, data) {
+  //  console.log("I am the data", data);
+  id.toString(); //make it a string since mongo id's are strings
+  let userId = new ObjectId(id); //have to import ObjectID from mongo require, then put the id as the parameter. This is how you check for ID match
   try {
     await client.connect();
-    let updatedFundsArr = client
+    let updatedUser = client
+      .db("GainsAndLosses")
+      .collection("practiceUsers")
+      .findOneAndUpdate(
+        { _id: userId },
+        { $push: { [arrName]: { $each: [...data] } } },
+        { upsert: true },
+        { returnNewDocument: true }
+      ); //find user by ID
+    return updatedUser ? true : false; //if found data will be the object if not found will return null
+  } catch (error) {
+    console.log(error);
+  }
+}
+
+async function updateUserFunds({ collection, id, arrName, data }) {
+  //  console.log("I am the data", data);
+  id.toString(); //make it a string since mongo id's are strings
+  let userId = new ObjectId(id); //have to import ObjectID from mongo require, then put the id as the parameter. This is how you check for ID match
+  try {
+    await client.connect();
+    let updatedUser = client
+      .db("GainsAndLosses")
+      .collection(collection)
+      .findOneAndUpdate(
+        { _id: userId },
+        { $set: { [arrName]: [...data] } },
+        { upsert: true },
+        { returnNewDocument: true }
+      ); //find user by ID
+    return updatedUser ? true : false; //if found data will be the object if not found will return null
+  } catch (error) {
+    console.log(error);
+  }
+}
+
+async function updateCommunityArr(collection, data) {
+  // console.log("I am the data for the community", data);
+  if (!data || !data.length)
+    return { type: "fail", message: "Ooops There was nothing to add" };
+
+  try {
+    await client.connect();
+    let updatedArr = client
       .db("GainsAndLosses")
       .collection(collection)
       .insertMany([...data]);
-    count++;
-    console.error(count);
-    return updatedFundsArr ? true : false; //if found data will be the object if not found will return null
+    return { type: "success", message: "Community Updated" };
   } catch (error) {
     console.log(error);
+    return error;
+  }
+}
+
+async function replaceCommunityData({ collection, data, id }) {
+  // console.log("I am the data for the community", data);
+  if (!data || !data.length)
+    return { type: "fail", message: "Ooops There was nothing to add" };
+  const query = { _id: ObjectId(id) };
+  try {
+    await client.connect();
+    let updatedArr = client
+      .db("GainsAndLosses")
+      .collection(collection)
+      .findOneAndReplace(query, data);
+    return { type: "success", message: "Community Updated" };
+  } catch (error) {
+    console.log(error);
+    return error;
+  }
+}
+
+//updating user passing user and customer object. Destructured id from user below. Pushed customer object onto myCustomer user Array
+async function addPropToCommunityData({ collection, data, id, prop }) {
+  const query = { _id: ObjectId(id) };
+  try {
+    await client.connect(); //find user by id      //push customer object to array
+    let dataBase = client
+      .db("GainsAndLosses")
+      .collection(collection)
+      .findOneAndUpdate(
+        query,
+        { $set: { [prop]: data } },
+        { upsert: true },
+        { returnNewDocument: true }
+      );
+    return dataBase ? true : null;
+  } catch (error) {
+    console.log(error);
+    return error;
   }
 }
 ///takes a config object with parameters as props. Adding user to a collections objects arrName
@@ -152,13 +233,89 @@ async function findData({ collection, id }) {
       .db("GainsAndLosses")
       .collection(collection)
       .findOne({ _id: ObjectId(id) }); //find user by ID
-    return foundData ? foundData : false; //if found data will be the object if not found will return null
+    return foundData ? foundData : null; //if found data will be the object if not found will return null
   } catch (error) {
     console.log(error);
   }
 }
 
-async function getQuote() {}
+//updating user passing user and customer object. Destructured id from user below. Pushed customer object onto myCustomer user Array
+async function updateUser(userId) {
+  await client.connect(); //find user by id      //push customer object to array
+  let dataBase = client
+    .db("GainsAndLosses")
+    .collection("users")
+    .findOneAndUpdate(
+      { _id: ObjectId(userId) },
+      { $set: { firstLogin: false } },
+      { upsert: true },
+      { returnNewDocument: true }
+    );
+  return dataBase ? true : null;
+}
+
+async function getPriceFromDb(collection, symbol) {
+  await client.connect(); //find user by id      //push customer object to array
+  let quoteInDb = client
+    .db("GainsAndLosses")
+    .collection(collection)
+    .findOne({ symbol }); //find the user by username
+
+  return quoteInDb ? quoteInDb : false;
+}
+
+async function updateFundPrice(fund) {
+  const fundId = fund._id;
+  const query = { _id: ObjectId(fundId) };
+  await client.connect(); //find user by id      //push customer object to array
+  let isUpdatedFund = client
+    .db("GainsAndLosses")
+    .collection("funds")
+    .findOneAndReplace(query, fund);
+  return isUpdatedFund ? true : null;
+}
+
+async function updateCompetitionPrices(compeitition) {
+  //const compeititionId = compeitition._id;
+  //const query = { _id: ObjectId(compeititionId) };
+  console.log(compeitition.length);
+  const arr = [];
+  try {
+    for (i = 0; i < compeitition.length; i++) {
+      const compeititionId = compeitition[i]._id;
+      const query = { _id: ObjectId(compeititionId) };
+      await client.connect(); //find user by id      //push customer object to array
+      let isUpdatedFund = client
+        .db("GainsAndLosses")
+        .collection("competitions")
+        .findOneAndReplace(query, compeitition[i]);
+      await isUpdatedFund;
+      arr.push(true);
+    }
+    return arr;
+  } catch (error) {
+    console.log("I caught the error", error);
+    return error;
+  }
+}
+
+async function deleteCollectionDocs(collection) {
+  await client.connect(); //find user by id      //push customer object to array
+  let deletedCollection = client
+    .db("GainsAndLosses")
+    .collection(collection)
+    .remove({});
+  return deletedCollection;
+}
+
+async function sendtoDB(collection, data) {
+  await client.connect(); //find user by id      //push customer object to array
+  let deletedCollection = client
+    .db("GainsAndLosses")
+    .collection(collection)
+    .insertMany([...data]);
+  return deletedCollection;
+}
 
 //find customer, customer parameter is the email address
 async function findCustomer(customer) {
@@ -184,27 +341,37 @@ async function getCustomers() {
 async function getCommunityData(collection) {
   await client.connect();
   // let database = await client.db('sample_analytics').collection('customers').find().limit(10); //return the first 10 docuents
-  let database = client
-    .db("GainsAndLosses")
-    .collection(collection)
-    .find()
-    .limit(50); //return the first 50 docuents
+  let database = client.db("GainsAndLosses").collection(collection).find();
+  //.limit(1); //return the first 50 docuents
   const customers = await database.toArray(); // make it an array(have to do this to get the objects)
   return customers;
 }
 
-//updating user passing user and customer object. Destructured id from user below. Pushed customer object onto myCustomer user Array
-async function updateUser(user, customer) {
-  await client.connect(); //find user by id      //push customer object to array
-  let dataBase = client
-    .db("social_finance")
-    .collection("loggedUsers")
-    .findOneAndUpdate(
-      { _id: user._id },
-      { $push: { myCustomers: customer } },
-      { upsert: true },
-      { returnNewDocument: true }
-    );
+async function getMyFunds(userId) {
+  const stringUserId = userId.toString(); //convert mongoID to string
+  const query = { createdById: stringUserId };
+  try {
+    await client.connect();
+    // let database = await client.db('sample_analytics').collection('customers').find().limit(10); //return the first 10 docuents
+    let database = client.db("GainsAndLosses").collection("funds").find(query);
+    //.limit(1); //don't need to objectId,keep userId a string
+    const myFunds = await database.toArray(); // make it an array(have to do this to get the objects)
+    return myFunds;
+  } catch (error) {}
+}
+
+//increments and ecrements(pass negative vaule to decrement)
+async function incrementUserData({ id, keyName, collectionName, amount }) {
+  id.toString(); //make it a string since mongo id's are strings
+  const query = { _id: ObjectId(id) };
+  const parsedAmount = parseFloat(amount);
+  await client.connect();
+  let updatedCustomer = client
+    .db("GainsAndLosses")
+    .collection(collectionName)
+    .findOneAndUpdate(query, { $inc: { [keyName]: parsedAmount } }); //find customer by ID
+  console.log("updated");
+  return updatedCustomer;
 }
 
 async function findCustomerAndUpdate(id, reactionName) {
@@ -291,3 +458,14 @@ exports.getCommunityData = getCommunityData;
 exports.addUsertoCommunityArr = addUsertoCommunityArr;
 exports.findData = findData;
 exports.deleteFromUserArr = deleteFromUserArr;
+exports.deleteCollectionDocs = deleteCollectionDocs;
+exports.getPriceFromDb = getPriceFromDb;
+exports.updateFundPrice = updateFundPrice;
+exports.getMyFunds = getMyFunds;
+exports.sendtoDB = sendtoDB;
+exports.updateCompetitionPrices = updateCompetitionPrices;
+exports.replaceCommunityData = replaceCommunityData;
+exports.addPropToCommunityData = addPropToCommunityData;
+exports.incrementUserData = incrementUserData;
+exports.updateUserArrPractice = updateUserArrPractice;
+exports.updateUserFunds = updateUserFunds;

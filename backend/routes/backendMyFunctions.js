@@ -21,7 +21,11 @@ const myFunctions = {
     );
     return filteredArray;
   },
-  sortArr: function (array, property) {
+  sortArr: function (array, property, direction) {
+    if (direction === "descending") {
+      const sortedArr = array.sort((a, b) => a[property] - b[property]);
+      return sortedArr.reverse();
+    }
     const sortedArr = array.sort((a, b) => a[property] - b[property]);
     return sortedArr;
   },
@@ -29,25 +33,17 @@ const myFunctions = {
     //boolean
     return object.hasOwnProperty(key) ? true : false;
   },
-  isGreaterThan: function (comparison = 0, object = 0, key) {
+  isGreaterThan: function (comparison = 0, object = 0) {
     //boolean
-    if (key) {
-      return object[key] > comparison ? true : false;
-    }
     return object > comparison ? true : false;
   },
-  isLessThan: function (comparison = 0, object = 0, key) {
+  isLessThan: function (comparison = 0, object = 0) {
     //boolean
-    if (key) {
-      return object[key] < comparison ? true : false;
-    }
+
     return object < comparison ? true : false;
   },
-  isEqualTo: function (comparison = 0, object = 0, key) {
+  isEqualTo: function (comparison = 0, object = 0) {
     //boolean
-    if (key) {
-      return object[key] === comparison ? true : false;
-    }
     return object === comparison ? true : false;
   },
   getRandomArrItem: function (array) {
@@ -59,6 +55,28 @@ const myFunctions = {
   checkIfDupe: function (arr, condition) {
     if (arr.includes(condition)) return true;
     return false;
+  },
+
+  makePriceObj: function (keyArr, valueArr) {
+    //works with intraday prices, format object for the chart on the front end
+    const finalArr = valueArr.map((value, index) => {
+      return {
+        value: parseFloat(value["4. close"]),
+        timestamp: keyArr[index], //match timestamp with the closing price
+      };
+    });
+    return finalArr;
+  },
+  getPercentChange: function (initialInvestment, currentValue) {
+    const percentChange =
+      ((currentValue - initialInvestment) / initialInvestment) * 100;
+    return +percentChange.toFixed(2);
+  },
+  isDateBefore: function (dateChecking, comparisonDate) {
+    const todayOne = new Date(dateChecking).toLocaleDateString();
+    const comparisonDateOne = new Date(comparisonDate).toLocaleDateString();
+    console.log([todayOne, comparisonDateOne]);
+    return comparisonDateOne < todayOne;
   },
 };
 
