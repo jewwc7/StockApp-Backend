@@ -74,7 +74,7 @@ async function updateUserArr(id, arrName, data) {
       .findOneAndUpdate(
         { _id: userId },
         { $push: { [arrName]: { $each: [...data] } } },
-        { upsert: true },
+        //   { upsert: true },
         { returnNewDocument: true }
       ); //find user by ID
     return updatedUser ? true : false; //if found data will be the object if not found will return null
@@ -95,7 +95,7 @@ async function updateUserArrPractice(id, arrName, data) {
       .findOneAndUpdate(
         { _id: userId },
         { $push: { [arrName]: { $each: [...data] } } },
-        { upsert: true },
+        // { upsert: true },
         { returnNewDocument: true }
       ); //find user by ID
     return updatedUser ? true : false; //if found data will be the object if not found will return null
@@ -108,6 +108,7 @@ async function updateUserFunds({ collection, id, arrName, data }) {
   //  console.log("I am the data", data);
   id.toString(); //make it a string since mongo id's are strings
   let userId = new ObjectId(id); //have to import ObjectID from mongo require, then put the id as the parameter. This is how you check for ID match
+
   try {
     await client.connect();
     let updatedUser = client
@@ -116,7 +117,7 @@ async function updateUserFunds({ collection, id, arrName, data }) {
       .findOneAndUpdate(
         { _id: userId },
         { $set: { [arrName]: [...data] } },
-        { upsert: true },
+        //  { upsert: true }, //upsert makes it insert the fund to users if there are no users connected to fund, don't want that
         { returnNewDocument: true }
       ); //find user by ID
     return updatedUser ? true : false; //if found data will be the object if not found will return null
@@ -226,6 +227,30 @@ async function deleteFromUserArr({ userId, arr, condition }) {
   }
 }
 
+async function deleteFromUserArrNotId({
+  userId,
+  arr,
+  conditionKey,
+  condition,
+}) {
+  const query = { [conditionKey]: condition };
+  try {
+    await client.connect();
+    let updatedUser = client
+      .db("GainsAndLosses")
+      .collection("users")
+      .findOneAndUpdate(
+        { _id: ObjectId(userId) }, //find user
+        { $pull: { [arr]: query } } //the _id is the competitions _id.delete the arr item that meets teh condition
+      );
+    return updatedUser;
+    //   db.profiles.updateOne( { _id: 1 }, { $pull: { votes: { $gte: 6 } } } )
+  } catch (error) {
+    console.log(error);
+    return error;
+  }
+}
+
 async function findData({ collection, id }) {
   try {
     await client.connect();
@@ -304,7 +329,7 @@ async function deleteCollectionDocs(collection) {
   let deletedCollection = client
     .db("GainsAndLosses")
     .collection(collection)
-    .remove({});
+    .deleteMany({});
   return deletedCollection;
 }
 
@@ -347,9 +372,9 @@ async function getCommunityData(collection) {
   return customers;
 }
 
-async function getMyFunds(userId) {
-  const stringUserId = userId.toString(); //convert mongoID to string
-  const query = { createdById: stringUserId };
+async function getMyFunds(fundId) {
+  const stringFundId = fundId.toString(); //convert mongoID to string
+  const query = { _id: ObjectId(stringFundId) };
   try {
     await client.connect();
     // let database = await client.db('sample_analytics').collection('customers').find().limit(10); //return the first 10 docuents
@@ -469,3 +494,4 @@ exports.addPropToCommunityData = addPropToCommunityData;
 exports.incrementUserData = incrementUserData;
 exports.updateUserArrPractice = updateUserArrPractice;
 exports.updateUserFunds = updateUserFunds;
+exports.deleteFromUserArrNotId = deleteFromUserArrNotId;

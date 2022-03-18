@@ -39,10 +39,12 @@ const {
   incrementUserData,
   updateUserArrPractice,
   getMyFunds,
+  deleteFromUserArrNotId,
   updateUserFunds,
 } = require("./gainsMongoFunctions");
 const { getQuote, getIntraday } = require("./apiFunctions");
 const { myFunctions } = require("./backendMyFunctions");
+const { Empire } = require("./classes");
 const {
   checkIfDupe,
   makePriceObj,
@@ -112,22 +114,25 @@ router.post("/addcreatedfund", async (req, res, err) => {
   /* investmentsAllowed , ["# of Investestments"] ,amount,,[" # of Investors"],  Length8*/
   // console.log(req.body);
   const tickers = req.body.tickers;
-
+  const mongoID = ObjectId(); //make ID here so I can use within multiple objects
   //get price of all funds tickers
 
   //Will need to get stock prcies for each symbol, try the db first then try the api
+  ///need to create MongoID and so it can be placed on user FUnd and Comm Fund
+  //addedFUnd should be finalCreatedFUnd and add _id:
   try {
     const { createdById } = req.body;
-    const addedFund = await updateUserArr(createdById, "createdFunds", [
-      { ...req.body, createDate: today },
-    ]);
+
     const newTickerArr = await appendTodaysPrice(tickers);
     const finalCreatedFund = {
+      _id: mongoID,
       ...req.body,
       tickers: newTickerArr,
       createDate: today,
     };
-
+    const addedFund = await updateUserArr(createdById, "createdFunds", [
+      { ...finalCreatedFund },
+    ]);
     const addedFundCommunity = await updateCommunityArr("funds", [
       { ...finalCreatedFund },
     ]);
@@ -161,7 +166,7 @@ router.post("/addcompetition", async (req, res, err) => {
     if (isEqualTo(10, days)) return 12;
     if (isEqualTo(15, days)) return 19;
     if (isEqualTo(20, days)) return 26;
-    return "Only 5,10,15,20 are valid days";
+    return 5; //default will be a week
   }
 
   const {
@@ -307,10 +312,10 @@ router.post("/addfollower", async (req, res, err) => {
 router.post("/sendinvitation", async (req, res, err) => {
   console.log(`A request to invite ${req.body.invitee}`); //this works, just work on the front end
   const inviteeId = req.body.invitee;
-
+  const messageId = Math.floor(Math.random() * 1000000);
   try {
     const addedInvitation = await updateUserArr(inviteeId, "messages", [
-      { ...req.body, sentDate: today },
+      { ...req.body, sentDate: today, messageId },
     ]);
     res.send(addedInvitation);
   } catch (error) {
@@ -371,7 +376,7 @@ router.post("/acceptinvitation", async (req, res, err) => {
     }
     const acceptedInvitation = await addUsertoCommunityArr(config); //add acceptor to the competition
     const deleteMsg = await deleteFromUserArr(deleteUserArrConfig);
-    const addToAcceptorsComp = updateUserArr(acceptorId, "competitions", [
+    const addToAcceptorsComp = await updateUserArr(acceptorId, "competitions", [
       {
         id: competitionId,
         joinDate: today,
@@ -391,17 +396,16 @@ router.post("/acceptinvitation", async (req, res, err) => {
   }
 });
 
-router.post("/deletemsg", async (req, res, err) => {
-  //req.body has the competitionId and the userId(which is the creatorId)
-  console.log(req.body); //this works just need to match the payload from the front end
+router.post("/deletemessage", async (req, res, err) => {
   const deleteUserArrConfig = {
     userId: req.body.userId, //checking if equal to
     arr: "messages",
-    condition: req.body.competitionId, //
+    conditionKey: "messageId",
+    condition: req.body.messageId, //
   };
 
   try {
-    const deleteMsg = await deleteFromUserArr(deleteUserArrConfig);
+    const deleteMsg = await deleteFromUserArrNotId(deleteUserArrConfig);
     res.send(deleteMsg);
   } catch (error) {
     console.log(error);
@@ -409,6 +413,22 @@ router.post("/deletemsg", async (req, res, err) => {
   }
 });
 
+router.post("/deleteinvite", async (req, res, err) => {
+  const deleteUserArrConfig = {
+    userId: req.body.userId, //checking if equal to
+    arr: "acceptedInvites",
+    conditionKey: "competitionId",
+    condition: req.body.competitionId, //
+  };
+
+  try {
+    const deleteMsg = await deleteFromUserArrNotId(deleteUserArrConfig);
+    res.send(deleteMsg);
+  } catch (error) {
+    console.log(error);
+    res.send(error);
+  }
+});
 router.post("/likefund", async (req, res, err) => {
   //req.body has the competitionId and the userId(which is the creatorId)
   console.log(req.body); //this works just need to match the payload from the front end
@@ -432,13 +452,43 @@ router.post("/likefund", async (req, res, err) => {
   }
 });
 
-router.post("/onboardingviewed", async (req, res, err) => {
-  //req.body has the competitionId and the userId(which is the creatorId)
+//when user clicks bear
+router.post("/addBullUser", async (req, res, err) => {
   console.log(req.body); //this works just need to match the payload from the front end
-
+  const config = {
+    collection: "funds",
+    competitionId: req.body.fundId, //is not actually competiitonID, that is just the parameter name
+    arrName: "bulls",
+    data: [req.body],
+  };
+  try {
+    const bullFund = await addUsertoCommunityArr(config);
+    res.send(bullFund._id);
+  } catch (error) {
+    console.log(error);
+    res.send(error);
+  }
+});
+//when user clicks bear
+router.post("/addBearUser", async (req, res, err) => {
+  const config = {
+    collection: "funds",
+    competitionId: req.body.fundId, //is not actually competiitonID, that is just the parameter name
+    arrName: "bears",
+    data: [req.body],
+  };
+  try {
+    const bullFund = await addUsertoCommunityArr(config);
+    res.send(bullFund._id);
+  } catch (error) {
+    console.log(error);
+    res.send(error);
+  }
+});
+router.post("/onboardingviewed", async (req, res, err) => {
+  console.log(req.body); //this works just need to match the payload from the front end
   try {
     const viewedOnboarding = await updateUser(req.body.id);
-    //need to add to users likedFunds as well
     res.send(viewedOnboarding);
   } catch (error) {
     console.log(error);
@@ -466,8 +516,7 @@ router.post("/addstockprices", async (req, res, err) => {
       finalStockPrices
     );
     const updateSuccessful = isEqualTo("success", pricesUpdated.type);
-    console.log(updateSuccessful);
-    res.send(updateSuccessful ? "Updated" : "Failed");
+    res.send(updateSuccessful ? "Update Successful" : "Update Failed");
   } catch (error) {
     console.log(error);
     res.send(error);
@@ -491,7 +540,7 @@ router.post("/addintradayprices", async (req, res, err) => {
     const finalStocks = await Promise.all(intradayPrices);
     const pricesUpdated = await updateCommunityArr(collection, finalStocks);
     const updateSuccessful = isEqualTo("success", pricesUpdated.type);
-    res.send(updateSuccessful ? "Updated" : "Failed");
+    res.send(updateSuccessful ? "Update Successful" : "Update Failed");
   } catch (error) {
     console.log(error);
     //res.send(error);
@@ -523,8 +572,7 @@ router.post("/updatefunds", async (req, res, err) => {
   //return tickers with prices appened
   try {
     const allFunds = await getCommunityData("funds");
-
-    allFunds.forEach(async (fund, index) => {
+    const allFundsMapped = allFunds.map(async (fund, index) => {
       const { tickers } = fund; //get ticker arr
       const updatedTickers = await appendCurrentPrice(tickers); //updated tickers with current prices
       const updatedFund = {
@@ -532,13 +580,12 @@ router.post("/updatefunds", async (req, res, err) => {
         tickers: updatedTickers,
         updatedDate: today,
       };
-      console.log(updatedFund);
       updateFundPrice(updatedFund); //find and replace mongo db(by _id)
+      return "Updated";
     });
-
+    const allFundsUpdated = await Promise.all(allFundsMapped);
     //get current price for today(update daily)
-
-    res.send("Updated");
+    res.send(allFundsUpdated);
   } catch (error) {
     console.log(error);
     res.status(400).send(error);
@@ -553,6 +600,7 @@ router.post("/updatecompetitionfunds", async (req, res, err) => {
     const mappedCompetitions = allCompetitions.map(
       async (competition, index) => {
         const { joinedInvestors, starts } = competition; //get ticker arr
+        console.log(joinedInvestors);
         const updatedInvestors = await appendIntraDayPrice({
           startDate: starts,
           arr: joinedInvestors,
@@ -566,6 +614,7 @@ router.post("/updatecompetitionfunds", async (req, res, err) => {
       }
     );
     const updatedCompetition = await Promise.all(mappedCompetitions);
+    console.log(updatedCompetition);
     const updateSuccessful = await updateCompetitionPrices([
       ...updatedCompetition,
     ]); //find and replace mongo db(by _id)
@@ -630,10 +679,6 @@ router.post("/practicecompetition", async (req, res, err) => {
       joinedInvestors[index].finalBalance = result;
     });
     return joinedInvestors;
-    //send Arr to competition so it can ad a winner property that will be this array
-    //forEach arr, if(i==0) send to userId,s wiiner prop, all other i's get sent to userID, loss
-    //winner = array[0] then async function to add winner to compeition ob/same for indivduals
-    //losers = res of array//async function to add losers to competion/ same for indivduals
   }
   try {
     const allCompetitions = await getCommunityData("practiceCompetition"); //get competiitons and dstructure each fund from the joined investor arr
@@ -655,7 +700,7 @@ router.post("/practicecompetition", async (req, res, err) => {
       delete competition.joinedInvestors;
       const updatedCompetition = {
         ...competition, //update comp with new investor
-        updateInvestorWithTotal, //is the joinedInvestorArr with updated final Balance
+        joinedInvestors: updateInvestorWithTotal, //is the joinedInvestorArr with updated final Balance
       };
       ///sort so the investor are in order
       const rankings = sortArr(
@@ -679,11 +724,8 @@ router.post("/practicecompetition", async (req, res, err) => {
       const competitionFullyUpdated = await addPropToCommunityData(
         resultPropConfig
       );
-      const updatedUsers = await updateUserRecord(
-        winnerAndLosers,
-        competitionAmount
-      );
-      console.log("new raning", competitionFullyUpdated);
+      await updateUserRecord(winnerAndLosers, competitionAmount);
+      console.log("new ranking", competitionFullyUpdated);
       return { compId: _id, msg: "This Competition has been updated" };
     });
     const updatedCompetition = await Promise.all(finalBoard);
@@ -730,12 +772,10 @@ async function updateUserRecord(rankingObj, competitionAmount) {
     id: winner.userId,
     keyName,
     collectionName,
-    amount: competitionAmount,
+    amount: winner.finalBalance,
   };
   try {
-    const updateWinner = await updateUserArrPractice(winner.userId, "2wins", [
-      winner,
-    ]);
+    await updateUserArrPractice(winner.userId, "2wins", [winner]);
     await incrementUserData(winnerConfig);
     const updateLosers = losers.map(async (loser, index) => {
       const negativeAmount = -competitionAmount;
@@ -747,9 +787,10 @@ async function updateUserRecord(rankingObj, competitionAmount) {
       };
       await updateUserArrPractice(loser.userId, "2losses", [loser]);
       await incrementUserData(loserConfig);
+      return { compId: loser.userId, msg: "The losers data has been updated" };
     });
-    await Promise.all(updateLosers);
-    return "Updated";
+    const updatedLoser = await Promise.all(updateLosers);
+    return updatedLoser;
   } catch (error) {
     console.log(error);
   }
@@ -757,34 +798,134 @@ async function updateUserRecord(rankingObj, competitionAmount) {
 
 //run after the funds in the community updated. This grabs the
 //users funds from the community and updates the users createdFunds array with
-//updated fund
+//updated fund,, look to make this cleaner
 router.post("/updateuserfunds", async (req, res, err) => {
   try {
     const users = await getCommunityData("users");
-    const updateUser = users.map(async (user, index) => {
-      const { _id } = user;
-      console.log(_id);
+
+    //move users into their own arrays
+    const updatedUsers = users.map((user) => {
+      const userWithUpdates = {
+        id: user._id,
+        updatedFunds: [],
+      };
+      user.createdFunds.forEach((fund) => {
+        userWithUpdates.updatedFunds.push(fund);
+      });
+      return userWithUpdates;
+    });
+    //update each fund in their own array with the community fund(updated), returns array of arrays.
+    const updateUsers = updatedUsers.map(async (user = {}, index) => {
+      const userWithUpdates = {
+        id: user.id, //make another object
+        updatedFunds: [],
+      };
+      return Promise.all(
+        user.updatedFunds.map(async (fund, index) => {
+          try {
+            const updatedFund = await getMyFunds(fund._id); //get fund
+            userWithUpdates.updatedFunds.push(updatedFund[0]); //push fund to the users array//
+            return userWithUpdates;
+          } catch (error) {
+            console.log(error);
+            return { err: "There was an error", errMsg: error };
+          }
+        })
+      );
+    });
+    const usersUpdated = await Promise.all(updateUsers);
+    //first index of array hold amultiple array with same data in it
+    //need to reduce the each index of the array to one array([[[],[],[]],[],[]]
+    const reduceLengthToOne = usersUpdated.forEach((item, index) => {
+      console.log(item);
+      if (!item.length) return (item = null);
+      item.length = 1;
+    });
+
+    //update User
+    const updatedUser = await usersUpdated.flat().map(async (user) => {
+      if (!user.updatedFunds.length) return;
       try {
-        const communityFunds = await getMyFunds(_id);
-        console.log(communityFunds.length);
-        const config = {
-          collection: "users",
-          id: _id,
+        const updateUserFundConfig = {
+          id: user.id, //checking if equal to
           arrName: "createdFunds",
-          data: communityFunds,
+          collection: "users",
+          data: [...user.updatedFunds],
         };
-        await updateUserFunds(config);
-        return "Update Successful";
+        console.log(updateUserFundConfig);
+        await updateUserFunds(updateUserFundConfig);
+        return `${user.id} was updated`;
       } catch (error) {
         console.log(error);
-        return error;
+        return { error };
       }
     });
-    const usersUpdated = await Promise.all(updateUser);
-    res.send(usersUpdated);
+    await updatedUser;
+    res.send(updatedUser);
   } catch (error) {
     console.log(error);
     res.send(error);
   }
 });
+
+router.post("/sellfund", async (req, res, err) => {
+  console.log(`A sell fund request made by ${req.body.userId}`); //this works, just work on the front end
+  const cashBalanceConfig = {
+    id: req.body.userId,
+    collectionName: "users",
+    keyName: "cashBalance",
+    amount: req.body.amount,
+  };
+  try {
+    const user = await findUserById(req.body.userId);
+    //filter out the deleted fund
+    const newUserCreatedFunds = user.createdFunds.filter((fund) => {
+      const stringId = fund._id.toString(); //make string because is a MongoId object
+      return stringId !== req.body.fundId;
+    });
+    const updateUserFundConfig = {
+      id: req.body.userId, //checking if equal to
+      arrName: "createdFunds",
+      collection: "users",
+      data: [...newUserCreatedFunds],
+    };
+    await updateUserFunds(updateUserFundConfig); //add new fundArr to user(overrides prior fundArr($set))
+    await incrementUserData(cashBalanceConfig); //add money from teh fund to cash balance
+    res.send("hahahah");
+  } catch (error) {
+    console.log(error);
+    res.send(error);
+  }
+});
+
+router.post("/updateUsersBalance", async (req, res, err) => {
+  //console.log(`A sell fund request made by ${req.body.userId}`); //this works, just work on the front end
+  try {
+    const users = await getCommunityData("users");
+    const empireUsers = users.map(async (user, index) => {
+      const { _id, name, hedgeFundName, cashBalance } = user;
+      const empireUser = new Empire(
+        _id,
+        name,
+        hedgeFundName,
+        cashBalance,
+        user
+      );
+      const totalBalance = empireUser.totalBalance();
+      const userPrice = {
+        value: totalBalance,
+        timestamp: today,
+      };
+      console.log(empireUser.id);
+      await updateUserArr(empireUser.id, "empireDailyPrice", [userPrice]);
+      return { msg: `${name} price has been updated to ${totalBalance}` };
+    });
+    const allEmpireUsersUpdated = await Promise.all(empireUsers);
+    res.send(allEmpireUsersUpdated);
+  } catch (error) {
+    console.log(error);
+    res.send(error);
+  }
+});
+
 module.exports = router;

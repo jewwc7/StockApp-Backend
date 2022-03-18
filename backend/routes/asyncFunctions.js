@@ -87,8 +87,8 @@ async function appendCurrentPrice(arr) {
 async function appendIntraDayPrice({ startDate, arr }) {
   //arr is joinedInvestor
   function isDateBefore(dateChecking, comparisonDate) {
-    const todayOne = new Date(dateChecking).toLocaleDateString();
-    const comparisonDateOne = new Date(comparisonDate).toLocaleDateString();
+    const todayOne = new Date(dateChecking);
+    const comparisonDateOne = new Date(comparisonDate);
     // console.log(comparisonDateOne < todayOne);
     return comparisonDateOne < todayOne;
   }
@@ -110,6 +110,7 @@ async function appendIntraDayPrice({ startDate, arr }) {
   const updatedInvestors = []; //array where the updated joinedinestors will be pushed
   const updatingInvestors = Promise.all(
     arr.map(async (investor, index) => {
+      console.log(investor.name);
       const { fundInPlay } = investor;
       const newTickerArr = fundInPlay.tickers.map(async (ticker) => {
         try {
@@ -147,7 +148,7 @@ async function appendIntraDayPrice({ startDate, arr }) {
                 prices: priceObject,
               },
             };
-            console.log(updatedTicker);
+            //    console.log(updatedTicker);
             return updatedTicker;
           }
         } catch (error) {

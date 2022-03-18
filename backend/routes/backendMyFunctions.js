@@ -73,8 +73,8 @@ const myFunctions = {
     return +percentChange.toFixed(2);
   },
   isDateBefore: function (dateChecking, comparisonDate) {
-    const todayOne = new Date(dateChecking).toLocaleDateString();
-    const comparisonDateOne = new Date(comparisonDate).toLocaleDateString();
+    const todayOne = new Date(dateChecking);
+    const comparisonDateOne = new Date(comparisonDate);
     console.log([todayOne, comparisonDateOne]);
     return comparisonDateOne < todayOne;
   },

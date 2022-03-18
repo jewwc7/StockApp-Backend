@@ -37,9 +37,8 @@ router.post("/login", async (req, res, err) => {
   const { name } = req.body; ///will nee
   try {
     const loginSuccessful = await findUser(name);
-    delete loginSuccessful.newPassword; //delete password
-    console.log(loginSuccessful);
     if (!loginSuccessful) return res.send(false);
+    delete loginSuccessful.newPassword; //delete password
     res.send(loginSuccessful);
   } catch (error) {
     console.log(error);
@@ -108,20 +107,21 @@ router.post("/singlestock", async (req, res, err) => {
       const finalArr = valueArr
         .map((value, index) => {
           const date = new Date(keyArr[index]).toLocaleDateString();
-          //only return data from yesterday
-          if (date < localYesterday) return false;
+          console.log(date, localYesterday);
+          //only return data from yesterday, works but doesnt on Sundays and Mondays becuase Monday won't get Friday's data
+          //  if (date < localYesterday) return false;
           return {
             value: parseFloat(value["4. close"]),
             timestamp: keyArr[index],
           };
         })
         .filter(Boolean);
+      console.log(finalArr);
       return finalArr;
     }
     const prices = makePriceObj().reverse();
     const firstPrice = prices[0].value;
     const lastPrice = prices[prices.length - 1].value;
-    console.log(firstPrice, lastPrice);
     const percentChange = getPercentChange(firstPrice, lastPrice);
     const stockObj = {
       Symbol: companyQuote["Global Quote"]["01. symbol"],
@@ -175,9 +175,9 @@ router.post("/getcommunityfunds", async (req, res, err) => {
 });
 
 router.post("/getmyfunds", async (req, res, err) => {
-  const userId = req.body.id;
+  const fundId = req.body.id;
   try {
-    const communityFunds = await getMyFunds(userId);
+    const communityFunds = await getMyFunds(fundId);
     res.send(communityFunds);
   } catch (error) {
     console.log(error);
@@ -186,7 +186,6 @@ router.post("/getmyfunds", async (req, res, err) => {
 });
 
 router.post("/getuserinfo", async (req, res, err) => {
-  console.log(req.body.id);
   try {
     const userInfo = await findUserById(req.body.id);
     res.send(userInfo);
