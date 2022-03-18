@@ -1,0 +1,10 @@
+//runs after funds are updated
+"./updateuserfunds";
+
+//gets full intra day and stores in mongo
+"./addintradayprices
+
+//gets quote and stores in mongo
+"./addstockprices"
+//updates community funds, must run before updating users individual fud=nds
+"./updatefunds"
