@@ -1,5 +1,4 @@
 const express = require("express");
-const validator = require("express-validator");
 let app = express();
 //BOdy Parser Middleware
 app.use(express.json({ limit: "50mb" }));
