@@ -12,7 +12,7 @@
     "web-vitals": "^1.1.0"
   },
   "scripts": {
-    "start": "node server",
+    "start": "node backend",
     "server": "nodemon backend",
     "client": "npm start --prefix my-app",
     "dev": "concurrently \"npm run server\" \"npm run client\""

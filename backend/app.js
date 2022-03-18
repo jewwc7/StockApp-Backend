@@ -19,6 +19,6 @@ app.use("/", (req, res, next, err) => {
 app.use("/", getRouter);
 app.use("/", postRouter);
 app.use("/", putRouter);
-const port = process.env.port || 19007;
+const port = process.env.PORT || 19007;
 console.log("listening on port", port);
 app.listen(port);
