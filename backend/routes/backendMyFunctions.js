@@ -75,7 +75,9 @@ const myFunctions = {
   isDateBefore: function (dateChecking, comparisonDate) {
     const todayOne = new Date(dateChecking);
     const comparisonDateOne = new Date(comparisonDate);
-    console.log([todayOne, comparisonDateOne]);
+    const localTOday = todayOne.toLocaleDateString();
+    const localComparison = comparisonDateOne.toLocaleDateString();
+    console.log([localTOday, localComparison]);
     return comparisonDateOne < todayOne;
   },
 };

@@ -1,12 +1,8 @@
 const {
   deleteFriend,
-  findSearchMatches,
-  addUserToDb,
-  findUserByIdResuse,
   updateUserById,
   findUser,
   getCustomers,
-  findCustomer,
   updateUser,
   findUserById,
   findCustomerAndUpdate,
@@ -20,6 +16,7 @@ const {
   getPriceFromDb,
 } = require("./gainsMongoFunctions");
 const { getQuote, getIntraday } = require("./apiFunctions");
+const { isBefore } = require("date-fns");
 
 async function appendTodaysPrice(arr) {
   const collection = "stock prices";
@@ -85,20 +82,16 @@ async function appendCurrentPrice(arr) {
 }
 
 async function appendIntraDayPrice({ startDate, arr }) {
-  //arr is joinedInvestor
-  function isDateBefore(dateChecking, comparisonDate) {
-    const todayOne = new Date(dateChecking);
-    const comparisonDateOne = new Date(comparisonDate);
-    // console.log(comparisonDateOne < todayOne);
-    return comparisonDateOne < todayOne;
-  }
   function getDatePrices(priceArr, dateChecking) {
     if (!Array.isArray(priceArr)) throw new Error("Must pass an Array");
+    const startDate = new Date(dateChecking);
     const pricesWithinStartDate = [];
     const { length } = priceArr;
+    console.log(length);
     for (let i = 0; i < length; i++) {
       const dateObject = priceArr[i];
-      if (isDateBefore(dateChecking, dateObject.timestamp)) {
+      const dateOfPrice = new Date(dateObject.timestamp);
+      if (isBefore(startDate, dateOfPrice)) {
         console.log("Im breaking here", dateObject);
         break;
       }
@@ -108,67 +101,65 @@ async function appendIntraDayPrice({ startDate, arr }) {
   }
   const collection = "intraday_prices";
   const updatedInvestors = []; //array where the updated joinedinestors will be pushed
-  const updatingInvestors = Promise.all(
-    arr.map(async (investor, index) => {
-      console.log(investor.name);
-      const { fundInPlay } = investor;
-      const newTickerArr = fundInPlay.tickers.map(async (ticker) => {
-        try {
-          //search mongo
-          if (!ticker || !ticker.symbol) return; //can delete
-          const { symbol } = ticker;
-          const priceInDb = await getPriceFromDb(collection, symbol);
-          // console.log(priceInDb);
-          if (priceInDb) {
-            await priceInDb;
-            const priceObject = getDatePrices(
-              priceInDb.prices.reverse(),
-              startDate
-            );
-            const updatedTicker = {
-              ...ticker, //return the orginal element with the new ticker price added. Will be the and stay the orginal investment of the fund
-              tickerprices: {
-                symbol,
-                prices: priceObject,
-              },
-            };
-            //if quote in db return the intradayprices
-            return updatedTicker;
-          } else {
-            //call API
-            const intradayPrice = await getIntraday(symbol);
-            const priceObject = getDatePrices(
-              intradayPrice.prices.reverse(),
-              startDate
-            );
-            const updatedTicker = {
-              ...ticker, //return the orginal element with the new ticker price added. Will be the and stay the orginal investment of the fund
-              tickerprices: {
-                symbol,
-                prices: priceObject,
-              },
-            };
-            //    console.log(updatedTicker);
-            return updatedTicker;
-          }
-        } catch (error) {
-          console.log(error);
+  const updatingInvestors = arr.map(async (investor, index) => {
+    console.log(investor.name);
+    const { fundInPlay } = investor;
+    const newTickerArr = fundInPlay.tickers.map(async (ticker) => {
+      try {
+        //search mongo
+        if (!ticker || !ticker.symbol) return; //can delete
+        const { symbol } = ticker;
+        const priceInDb = await getPriceFromDb(collection, symbol);
+        await priceInDb;
+        // console.log(priceInDb);
+        if (priceInDb) {
+          const priceObject = getDatePrices(
+            priceInDb.prices.reverse(),
+            startDate
+          );
+          const updatedTicker = {
+            ...ticker, //return the orginal element with the new ticker price added. Will be the and stay the orginal investment of the fund
+            tickerprices: {
+              symbol,
+              prices: priceObject,
+            },
+          };
+          //if quote in db return the intradayprices
+          return updatedTicker;
+        } else {
+          //call API
+          const intradayPrice = await getIntraday(symbol);
+          const priceObject = getDatePrices(
+            intradayPrice.prices.reverse(),
+            startDate
+          );
+          const updatedTicker = {
+            ...ticker, //return the orginal element with the new ticker price added. Will be the and stay the orginal investment of the fund
+            tickerprices: {
+              symbol,
+              prices: priceObject,
+            },
+          };
+          //    console.log(updatedTicker);
+          return updatedTicker;
         }
-      });
-      const tickersAreUpdated = await Promise.all(newTickerArr); //this is how you await an array of promises, ususful when running a promise within a promise
-      const updatedObj = {
-        ///update the investorObj
-        ...investor, //return the orginal obj with the tickers updated
-        fundInPlay: {
-          ...fundInPlay,
-          tickers: tickersAreUpdated, //
-        },
-      };
-      return updatedInvestors.push(updatedObj);
-    })
-  );
-  await updatingInvestors; //important, wait for the promises to resolve. updatinginvestors is a Prmoise.All map
-  return updatedInvestors; //could also Make this return Promise.all(updatedInvestors), instead of wrapping map in the promise.all, either works
+      } catch (error) {
+        console.log(error);
+      }
+    });
+    const tickersAreUpdated = await Promise.all(newTickerArr); //this is how you await an array of promises, ususful when running a promise within a promise
+    const updatedObj = {
+      ///update the investorObj
+      ...investor, //return the orginal obj with the tickers updated
+      fundInPlay: {
+        ...fundInPlay,
+        tickers: tickersAreUpdated, //
+      },
+    };
+    return updatedInvestors.push(updatedObj);
+  });
+  await Promise.all(updatingInvestors); //important, wait for the promises to resolve. updatinginvestors is a Prmoise.All map
+  return updatedInvestors;
 }
 
 exports.appendTodaysPrice = appendTodaysPrice;
