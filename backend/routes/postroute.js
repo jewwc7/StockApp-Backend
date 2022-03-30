@@ -5,23 +5,18 @@ const { ObjectId } = require("mongodb"); //don't forget to add the .MongoClient 
 
 let router = express.Router();
 const { validationResult, check } = require("express-validator");
+const isBefore = require("date-fns/isBefore");
+var isAfter = require("date-fns/isAfter");
+var isEqual = require("date-fns/isEqual");
 const {
   appendTodaysPrice,
   appendCurrentPrice,
   appendIntraDayPrice,
 } = require("./asyncFunctions");
 const {
-  deleteFriend,
-  findSearchMatches,
-  addUserToDb,
-  findUserByIdResuse,
-  updateUserById,
-  findUser,
   getCustomers,
-  findCustomer,
   updateUser,
   findUserById,
-  findCustomerAndUpdate,
   addUserToDbAppUsers,
   updateUserArr,
   updateCommunityArr,
@@ -37,14 +32,19 @@ const {
   replaceCommunityData,
   addPropToCommunityData,
   incrementUserData,
-  updateUserArrPractice,
   getMyFunds,
   deleteFromUserArrNotId,
   updateUserFunds,
+  cloneCollection,
 } = require("./gainsMongoFunctions");
-const { getQuote, getIntraday } = require("./apiFunctions");
+const {
+  getQuote,
+  getIntraday,
+  getIntradayCrypto,
+  getCryptoQuote,
+} = require("./apiFunctions");
 const { myFunctions } = require("./backendMyFunctions");
-const { Empire } = require("./classes");
+const { Empire, Competition, User } = require("./classes");
 const {
   checkIfDupe,
   makePriceObj,
@@ -87,10 +87,56 @@ router.post("/", async (req, res, err) => {
 
 router.post("/addappuser", async (req, res, err) => {
   console.log("A request has been made");
-  console.log(req.body);
+  const { email, password } = req.body;
+  if (!email || !password)
+    return res.send({ type: "error", msg: "Please enter password and email" });
+  const newUser = new User(0, email.toLowerCase(), password, req.body);
   try {
-    const user = await addUserToDbAppUsers(req.body);
-    res.send(user);
+    const user = await newUser.add(res);
+  } catch (error) {
+    console.log(error);
+    res.status(400).send(error);
+  }
+});
+
+router.post("/updateProfilePic", async (req, res, err) => {
+  console.log("A request has been made");
+  const { id, image } = req.body;
+  const updateUserConfig = {
+    collection: "users",
+    userId: id,
+    prop: "image",
+    data: image,
+  };
+  try {
+    const updatedUserPic = await updateUser(updateUserConfig);
+    const userWithNewPic = updatedUserPic.value ? updatedUserPic.value : null; //value will be null if not found, return the doc if found
+    if (
+      !userWithNewPic ||
+      !userWithNewPic.createdFunds ||
+      !userWithNewPic.createdFunds.length
+    )
+      return res.send("no createdFunds");
+    res.send("updated"); //I want to put this here, so user doesn’t have to wait until their funds are updated.
+
+    //updated all User created FUnds
+    const userFunds = userWithNewPic.createdFunds.map(async (fund) => {
+      const fundId = fund._id;
+      const updateCommunityDataConfig = {
+        collection: "funds",
+        id: fundId,
+        prop: "image",
+        data: image, //from req.body
+      };
+      try {
+        await addPropToCommunityData(updateCommunityDataConfig);
+        return { fund: fundId, msg: "pic has been updated" };
+      } catch (error) {
+        console.log(error);
+        return { error, msg: `${fundId} was not updated` };
+      }
+    });
+    return;
   } catch (error) {
     console.log(error);
     res.status(400).send(error);
@@ -111,11 +157,10 @@ router.post("/addtofavorites", async (req, res, err) => {
 });
 
 router.post("/addcreatedfund", async (req, res, err) => {
-  /* investmentsAllowed , ["# of Investestments"] ,amount,,[" # of Investors"],  Length8*/
-  // console.log(req.body);
   const tickers = req.body.tickers;
   const mongoID = ObjectId(); //make ID here so I can use within multiple objects
   //get price of all funds tickers
+  const decrementAmount = -1000;
 
   //Will need to get stock prcies for each symbol, try the db first then try the api
   ///need to create MongoID and so it can be placed on user FUnd and Comm Fund
@@ -130,12 +175,19 @@ router.post("/addcreatedfund", async (req, res, err) => {
       tickers: newTickerArr,
       createDate: today,
     };
+    const incrementConfig = {
+      id: createdById,
+      keyName: "cashBalance",
+      collection: "users",
+      amount: decrementAmount,
+    };
     const addedFund = await updateUserArr(createdById, "createdFunds", [
       { ...finalCreatedFund },
     ]);
     const addedFundCommunity = await updateCommunityArr("funds", [
       { ...finalCreatedFund },
     ]);
+    incrementUserData(incrementConfig);
     res.send("Updated");
   } catch (error) {
     console.log(error);
@@ -237,14 +289,13 @@ router.post("/savequotes", async (req, res, err) => {
   /* investmentsAllowed , ["# of Investestments"] ,amount,,[" # of Investors"],  Length8*/
   // console.log(req.body);
   try {
-    req.body.forEach(async (symbol, index) => {
+    const updatedDefaultStocks = req.body.map(async (symbol, index) => {
       symbol.trim();
       const companyQuote = await alpha.data.quote(symbol);
       const companyOverviewRequest = await axios.get(
         `https://www.alphavantage.co/query?function=OVERVIEW&symbol=${symbol}&apikey=EUIY8ECEM4DJSHYU`
       );
       const companyOverview = await companyOverviewRequest.data;
-
       const stockObj = {
         Symbol: companyQuote["Global Quote"]["01. symbol"],
         currentPrice: companyQuote["Global Quote"]["05. price"],
@@ -254,6 +305,7 @@ router.post("/savequotes", async (req, res, err) => {
       };
       updateCommunityArr("default_stocks", [stockObj]);
     });
+    await Promise.all(updatedDefaultStocks);
     res.send("All done :)");
   } catch (error) {
     console.log(error);
@@ -343,7 +395,7 @@ router.post("/acceptinvitation", async (req, res, err) => {
   const deleteUserArrConfig = {
     userId: acceptorId, //checking if equal to
     arr: "messages",
-    condition: competitionId, //
+    condition: ObjectId(competitionId), //
   };
   function checkNumberOfInvestors(investmentsAllowed, investorsInCompetition) {
     if (
@@ -487,14 +539,22 @@ router.post("/addBearUser", async (req, res, err) => {
 });
 router.post("/onboardingviewed", async (req, res, err) => {
   console.log(req.body); //this works just need to match the payload from the front end
+  const updateUserConfig = {
+    collection: "users",
+    userId: req.body.id,
+    prop: "firstLogin",
+    data: false,
+  };
   try {
-    const viewedOnboarding = await updateUser(req.body.id);
+    const viewedOnboarding = await updateUser(updateUserConfig);
     res.send(viewedOnboarding);
   } catch (error) {
     console.log(error);
     res.send(error);
   }
 });
+
+/////////////////////////////////////Nightly Post routes Starts
 
 router.post("/addstockprices", async (req, res, err) => {
   const symbols = req.body;
@@ -506,7 +566,7 @@ router.post("/addstockprices", async (req, res, err) => {
       const quote = await getQuote(symbol);
       const quoteObject = {
         symbol: quote["Global Quote"]["01. symbol"],
-        sharePrice: parseFloat(quote["Global Quote"]["05. price"]).toFixed(2),
+        sharePrice: parseFloat(quote["Global Quote"]["05. price"]),
       };
       return quoteObject;
     });
@@ -547,27 +607,6 @@ router.post("/addintradayprices", async (req, res, err) => {
   }
 });
 
-router.post("/practicefund", async (req, res, err) => {
-  const tickers = req.body.tickers;
-
-  //return tickers with prices appened
-  try {
-    const newTickerArr = await appendTodaysPrice(tickers);
-
-    //return the orginal fund(req.body), but replace the ticker proprtey with the newTickerArr
-    const finalCreatedFund = {
-      ...req.body,
-      tickers: newTickerArr,
-      createDate: today,
-    };
-
-    res.send(finalCreatedFund);
-  } catch (error) {
-    console.log(error);
-    res.status(400).send(error);
-  }
-});
-
 router.post("/updatefunds", async (req, res, err) => {
   //return tickers with prices appened
   try {
@@ -593,14 +632,22 @@ router.post("/updatefunds", async (req, res, err) => {
 });
 
 router.post("/updatecompetitionfunds", async (req, res, err) => {
-  //return tickers with prices appened
   try {
     const allCompetitions = await getCommunityData("competitions"); //get competiitons and dstructure each fund from the joined investor arr
-    ///
     const mappedCompetitions = allCompetitions.map(
       async (competition, index) => {
-        const { joinedInvestors, starts } = competition; //get ticker arr
-        console.log(joinedInvestors);
+        const { joinedInvestors, starts, ends, results, title } = competition; //get ticker arr
+        const today = new Date();
+        const startDate = new Date(starts);
+        const endDate = new Date(ends);
+        if (
+          isBefore(today, startDate) ||
+          isAfter(today, endDate) ||
+          isEqual(today, endDate) ||
+          results
+        )
+          return false;
+
         const updatedInvestors = await appendIntraDayPrice({
           startDate: starts,
           arr: joinedInvestors,
@@ -613,8 +660,9 @@ router.post("/updatecompetitionfunds", async (req, res, err) => {
         return updatedCompetition;
       }
     );
-    const updatedCompetition = await Promise.all(mappedCompetitions);
-    console.log(updatedCompetition);
+    const updatedCompetition = (await Promise.all(mappedCompetitions)).filter(
+      Boolean
+    );
     const updateSuccessful = await updateCompetitionPrices([
       ...updatedCompetition,
     ]); //find and replace mongo db(by _id)
@@ -625,111 +673,40 @@ router.post("/updatecompetitionfunds", async (req, res, err) => {
   }
 });
 
-router.post("/practicecompetition", async (req, res, err) => {
-  //return tickers with prices appened
-  function getFinalDollarAmount(
-    percentOfFund = 0.8,
-    portfolioTotal,
-    intradayPrices
-  ) {
-    const stockPrices = [...intradayPrices];
-    const initalPrice = stockPrices[0];
-    const finalPrice = stockPrices[1];
-    let initalInvestment = (percentOfFund * portfolioTotal) / 100; //dollar amount invested
-    const percentReturn = getPercentChange(initalPrice, finalPrice);
-    const finalAmount =
-      initalInvestment * (percentReturn / 100) + initalInvestment;
-    return finalAmount;
-  }
-  function getWinner(today, endDate, competition) {
-    const { joinedInvestors, amount } = competition;
-    const newJoinedInvestors = joinedInvestors.map((investor, index) => {
-      const { fundInPlay, userId } = investor;
-      const { tickers } = fundInPlay;
-      const personalReturn = tickers.map((ticker, index) => {
-        const { percentOfFund, tickerprices, symbol } = ticker;
-        const clonedTickerPrices = [...tickerprices.prices];
-        const begginingPrice = clonedTickerPrices.shift().value;
-        const endingPrice = clonedTickerPrices.pop().value;
-        const startEndPrice = [begginingPrice, endingPrice];
-        const finalDollarAmount = getFinalDollarAmount(
-          percentOfFund,
-          amount, //competitionViewing.amount,
-          startEndPrice
-        );
-        return { userId, symbol, percentOfFund, finalDollarAmount };
-      });
-      return personalReturn;
-    });
-    return newJoinedInvestors;
-  }
-  function decideWinner(competition) {
-    const { ends, joinedInvestors } = competition;
-    const investorReturns = getWinner(today, ends, competition);
-    const finalResults = investorReturns.map((investor, index) => {
-      //array of arrays
-      return investor.reduce((preValue, currValue) => {
-        //add each arrays finalDollar amount
-        const finalValue = preValue + currValue.finalDollarAmount;
-        return finalValue;
-      }, 0);
-    });
-    //add each result to their resepctive user
-    finalResults.forEach((result, index) => {
-      joinedInvestors[index].finalBalance = result;
-    });
-    return joinedInvestors;
-  }
+router.post("/determineWinner", async (req, res, err) => {
   try {
-    const allCompetitions = await getCommunityData("practiceCompetition"); //get competiitons and dstructure each fund from the joined investor arr
-    //  console.log(allCompetitions);
+    const allCompetitions = await getCommunityData("competitions"); //get competiitons and dstructure each fund from the joined investor arr
     const finalBoard = allCompetitions.map(async (competition, index) => {
-      const { ends, _id, results } = competition;
-      const compeitionEnded = isDateBefore(today, ends);
+      const { _id, title, amount, starts, ends, results } = competition;
+      const competitionClass = new Competition(
+        _id,
+        title,
+        amount,
+        starts,
+        ends,
+        competition
+      );
+      const compeitionEnded = competitionClass.hasEnded();
       if (!compeitionEnded)
-        //if comps hasnt ended or if results already are already determined
-        //only issue is game ends saurdays, so currently won't be updated until Sunday
         return { compId: _id, msg: "This Competition hasn't ended" };
       if (results)
         return {
           compId: _id,
           msg: "This Competition results were already determined",
         };
-      const updateInvestorWithTotal = decideWinner(competition);
-      const competitionAmount = competition.amount;
-      delete competition.joinedInvestors;
-      const updatedCompetition = {
-        ...competition, //update comp with new investor
-        joinedInvestors: updateInvestorWithTotal, //is the joinedInvestorArr with updated final Balance
-      };
-      ///sort so the investor are in order
-      const rankings = sortArr(
-        updatedCompetition.joinedInvestors,
-        "finalBalance",
-        "descending"
-      );
+      const finalStanding = competitionClass.getFinalStandings();
+      competitionClass.replaceJoinedInvestors(finalStanding);
+      const resultsData = competitionClass.resultsData();
       const replaceConfig = {
-        collection: "practiceCompetition",
+        collection: "competitions",
         id: _id,
-        data: updatedCompetition,
+        data: { ...competitionClass.data, results: resultsData }, //important only want the data, not the rest of the class. Also adding the results prop forMongo
       };
       await replaceCommunityData(replaceConfig);
-      const winnerAndLosers = addWinnerLosers(rankings);
-      const resultPropConfig = {
-        collection: "practiceCompetition",
-        id: _id,
-        prop: "results",
-        data: winnerAndLosers,
-      };
-      const competitionFullyUpdated = await addPropToCommunityData(
-        resultPropConfig
-      );
-      await updateUserRecord(winnerAndLosers, competitionAmount);
-      console.log("new ranking", competitionFullyUpdated);
+      await updateUserRecord(resultsData, competitionClass.amount);
       return { compId: _id, msg: "This Competition has been updated" };
     });
     const updatedCompetition = await Promise.all(finalBoard);
-
     res.send(updatedCompetition);
   } catch (error) {
     console.log(error);
@@ -737,36 +714,10 @@ router.post("/practicecompetition", async (req, res, err) => {
   }
 });
 
-function addWinnerLosers(array) {
-  if (!Array.isArray(array)) throw new Error("Array must be passed");
-  const clonedArr = [...array]; //always clone when using shift
-  const winner = clonedArr.shift(); //get first investor, mutates array
-  const losers = [...clonedArr]; //rest of the array after shift are the losers
-  const winningFund = winner.fundInPlay.name;
-  const winningFundTicker = winner.fundInPlay.ticker;
-  const winningAmount = winner.finalBalance;
-  const winningTickers = winner.fundInPlay.tickers.map((ticker) => {
-    const { symbol, percentOfFund } = ticker;
-    return {
-      symbol,
-      percentOfFund,
-    };
-  });
-  const results = {
-    winner,
-    winningFund,
-    winningAmount,
-    winningFundTicker,
-    winningTickers,
-    losers,
-  };
-  return results;
-}
-
 async function updateUserRecord(rankingObj, competitionAmount) {
   const { winner, losers } = rankingObj;
   const keyName = "cashBalance";
-  const collectionName = "practiceUsers";
+  const collectionName = "users";
   //delete winner.fundInPlay.tickers ?
   const winnerConfig = {
     id: winner.userId,
@@ -775,7 +726,7 @@ async function updateUserRecord(rankingObj, competitionAmount) {
     amount: winner.finalBalance,
   };
   try {
-    await updateUserArrPractice(winner.userId, "2wins", [winner]);
+    await updateUserArr(winner.userId, "wins", [winner]);
     await incrementUserData(winnerConfig);
     const updateLosers = losers.map(async (loser, index) => {
       const negativeAmount = -competitionAmount;
@@ -785,7 +736,7 @@ async function updateUserRecord(rankingObj, competitionAmount) {
         collectionName,
         amount: negativeAmount,
       };
-      await updateUserArrPractice(loser.userId, "2losses", [loser]);
+      await updateUserArr(loser.userId, "losses", [loser]);
       await incrementUserData(loserConfig);
       return { compId: loser.userId, msg: "The losers data has been updated" };
     });
@@ -867,37 +818,6 @@ router.post("/updateuserfunds", async (req, res, err) => {
     res.send(error);
   }
 });
-
-router.post("/sellfund", async (req, res, err) => {
-  console.log(`A sell fund request made by ${req.body.userId}`); //this works, just work on the front end
-  const cashBalanceConfig = {
-    id: req.body.userId,
-    collectionName: "users",
-    keyName: "cashBalance",
-    amount: req.body.amount,
-  };
-  try {
-    const user = await findUserById(req.body.userId);
-    //filter out the deleted fund
-    const newUserCreatedFunds = user.createdFunds.filter((fund) => {
-      const stringId = fund._id.toString(); //make string because is a MongoId object
-      return stringId !== req.body.fundId;
-    });
-    const updateUserFundConfig = {
-      id: req.body.userId, //checking if equal to
-      arrName: "createdFunds",
-      collection: "users",
-      data: [...newUserCreatedFunds],
-    };
-    await updateUserFunds(updateUserFundConfig); //add new fundArr to user(overrides prior fundArr($set))
-    await incrementUserData(cashBalanceConfig); //add money from teh fund to cash balance
-    res.send("hahahah");
-  } catch (error) {
-    console.log(error);
-    res.send(error);
-  }
-});
-
 router.post("/updateUsersBalance", async (req, res, err) => {
   //console.log(`A sell fund request made by ${req.body.userId}`); //this works, just work on the front end
   try {
@@ -927,5 +847,126 @@ router.post("/updateUsersBalance", async (req, res, err) => {
     res.send(error);
   }
 });
+
+/////////////////////////////////////////////Nightly Routes Ends
+
+router.post("/sellfund", async (req, res, err) => {
+  console.log(`A sell fund request made by ${req.body.userId}`); //this works, just work on the front end
+  const cashBalanceConfig = {
+    id: req.body.userId,
+    collectionName: "users",
+    keyName: "cashBalance",
+    amount: req.body.amount,
+  };
+  console.log(cashBalanceConfig);
+  try {
+    const user = await findUserById(req.body.userId);
+    //filter out the deleted fund
+    const newUserCreatedFunds = user.createdFunds.filter((fund) => {
+      const stringId = fund._id.toString(); //make string because is a MongoId object
+      return stringId !== req.body.fundId;
+    });
+
+    console.log(newUserCreatedFunds);
+    const updateUserFundConfig = {
+      id: req.body.userId, //checking if equal to
+      arrName: "createdFunds",
+      collection: "users",
+      data: [...newUserCreatedFunds],
+    };
+    await updateUserFunds(updateUserFundConfig); //add new fundArr to user(overrides prior fundArr($set))
+    await incrementUserData(cashBalanceConfig); //add money from teh fund to cash balance
+    res.send("hahahah");
+  } catch (error) {
+    console.log(error);
+    res.send(error);
+  }
+});
+
+router.post("/practicefund", async (req, res, err) => {
+  const tickers = req.body.tickers;
+
+  //return tickers with prices appened
+  try {
+    const newTickerArr = await appendTodaysPrice(tickers);
+
+    //return the orginal fund(req.body), but replace the ticker proprtey with the newTickerArr
+    const finalCreatedFund = {
+      ...req.body,
+      tickers: newTickerArr,
+      createDate: today,
+    };
+
+    res.send(finalCreatedFund);
+  } catch (error) {
+    console.log(error);
+    res.status(400).send(error);
+  }
+});
+
+//*Not in use for now, crpyto Prices intraday does not go back as far as stocks on 15min(because crypto is all day)
+//30min almost goes back far enought, and horuly does, it just won't have as many data points for the chart on front end
+//figure out how I will do this
+
+/*router.post("/practiceCrypto", async (req, res, err) => {
+  //console.log(`A sell fund request made by ${req.body.userId}`); //this works, just work on the front end
+  try {
+    const price = await getIntradayCrypto(req.body.symbol);
+    res.send(price);
+  } catch (error) {
+    console.log(error);
+    res.send(error);
+  }
+});
+router.post("/addCryptoprices", async (req, res, err) => {
+  const symbols = req.body;
+  //req.body has the competitionId and the userId(which is the creatorId)
+  // console.log(req.body); //this works just need to match the payload from the front end
+  try {
+    const stocksPrices = symbols.map(async (symbol, index) => {
+      const quote = await getCryptoQuote(symbol);
+      const quoteObject = {
+        symbol: quote.symbol,
+        sharePrice: quote.sharePrice,
+      };
+      return quoteObject;
+    });
+    const finalStockPrices = await Promise.all(stocksPrices);
+    const pricesUpdated = await updateCommunityArr(
+      "stock prices",
+      finalStockPrices
+    );
+    const updateSuccessful = isEqualTo("success", pricesUpdated.type);
+    res.send(updateSuccessful ? "Update Successful" : "Update Failed");
+  } catch (error) {
+    console.log(error);
+    res.send(error);
+  }
+});
+
+router.post("/addintradayCryptoprices", async (req, res, err) => {
+  const symbols = req.body;
+  console.log(symbols);
+  const collection = "intraday_prices";
+  try {
+    const intradayPrices = symbols.map(async (symbol, index) => {
+      console.log("yoo", symbol);
+      ///get quote for each symbol and push into arr
+      const intradayPrice = await getIntradayCrypto(symbol);
+      const quoteObject = {
+        ...intradayPrice,
+        updated: new Date(),
+      };
+      return quoteObject;
+    });
+    const finalStocks = await Promise.all(intradayPrices);
+    const pricesUpdated = await updateCommunityArr(collection, finalStocks);
+    const updateSuccessful = isEqualTo("success", pricesUpdated.type);
+    res.send(updateSuccessful ? "Update Successful" : "Update Failed");
+  } catch (error) {
+    console.log(error);
+    //res.send(error);
+  }
+}); */
 
 module.exports = router;

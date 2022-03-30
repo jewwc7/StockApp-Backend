@@ -3,35 +3,26 @@ const { MongoClient, ObjectId } = require("mongodb"); //don't forget to add the 
 const dotenv = require("dotenv").config();
 const uri = `mongodb+srv://${process.env.DB_USERNAME}:${process.env.DB_PASSWORD}@cluster0.lz4kl.mongodb.net/test?retryWrites=true&w=majority`; //getting data for my cluster, will always be used. Used Atlas connect via driver.
 const client = new MongoClient(uri, { useUnifiedTopology: true }); //initiating the MongoClient class, this will always be used
-async function addUserToDb(user) {
-  let { username } = user; //
+
+async function cloneCollection() {
   await client.connect();
-  let database = client.db("social_finance").collection("loggedUsers");
-  let isDupe = await database.findOne({ username: username }); //find the user
-  console.log(isDupe);
+  client
+    .db("GainsAndLosses")
+    .collection("competitions")
+    .copyTo("backupCompetitions");
+}
+async function addUserToDbAppUsers(user) {
+  let { email } = user;
+  await client.connect();
+  let database = client.db("GainsAndLosses").collection("users");
+  let isDupe = await database.findOne({ email: email }); //find the user
   if (isDupe) {
-    //if it is duplicate return false
+    console.log("I am dup", isDupe);
     return false;
   } else {
     console.log("true");
     database.insertOne(user); //if not duplicate insert user to db and return true
     return true;
-  }
-}
-
-async function addUserToDbAppUsers(user) {
-  let { email } = user;
-  console.log(email);
-  await client.connect();
-  let database = client.db("GainsAndLosses").collection("users");
-  let isDupe = await database.findOne({ email: email }); //find the user
-  console.log(isDupe);
-  if (isDupe) {
-    return "THis is a duplicate";
-  } else {
-    console.log("true");
-    database.insertOne(user); //if not duplicate insert user to db and return true
-    return "Succesfully Added";
   }
 }
 
@@ -41,7 +32,7 @@ async function findUser(user) {
   let data = client
     .db("GainsAndLosses")
     .collection("users")
-    .findOne({ name: user }, { newPassword: 0 }); //find the user by username
+    .findOne({ email: user }, { newPassword: 0 }); //find the user by username
   return data; //if found data will be the object if not found will return null
 }
 
@@ -173,7 +164,6 @@ async function addPropToCommunityData({ collection, data, id, prop }) {
       .findOneAndUpdate(
         query,
         { $set: { [prop]: data } },
-        { upsert: true },
         { returnNewDocument: true }
       );
     return dataBase ? true : null;
@@ -199,7 +189,7 @@ async function addUsertoCommunityArr({
       .findOneAndUpdate(
         { _id: ObjectId(competitionId) },
         { $push: { [arrName]: { $each: [...data] } } },
-        //   { upsert: true }, //no upsert because if competition deleted will create a random momgoobject
+        { upsert: true }, //no upsert because if competition deleted will create a random momgoobject
         { returnNewDocument: true }
       ); //find user by ID
     return updatedFundsArr ? true : false; //if found data will be the object if not found will return null
@@ -265,18 +255,19 @@ async function findData({ collection, id }) {
 }
 
 //updating user passing user and customer object. Destructured id from user below. Pushed customer object onto myCustomer user Array
-async function updateUser(userId) {
+async function updateUser({ collection, userId, prop, data }) {
   await client.connect(); //find user by id      //push customer object to array
+  const mongoId = ObjectId(userId);
+  const query = { _id: mongoId };
   let dataBase = client
     .db("GainsAndLosses")
-    .collection("users")
+    .collection(collection)
     .findOneAndUpdate(
-      { _id: ObjectId(userId) },
-      { $set: { firstLogin: false } },
-      { upsert: true },
+      query,
+      { $set: { [prop]: data } },
       { returnNewDocument: true }
     );
-  return dataBase ? true : null;
+  return dataBase;
 }
 
 async function getPriceFromDb(collection, symbol) {
@@ -300,22 +291,23 @@ async function updateFundPrice(fund) {
   return isUpdatedFund ? true : null;
 }
 
-async function updateCompetitionPrices(compeitition) {
-  //const compeititionId = compeitition._id;
-  //const query = { _id: ObjectId(compeititionId) };
-  console.log(compeitition.length);
+async function updateCompetitionPrices(competition) {
+  console.log(competition.length);
   const arr = [];
   try {
-    for (i = 0; i < compeitition.length; i++) {
-      const compeititionId = compeitition[i]._id;
-      const query = { _id: ObjectId(compeititionId) };
-      await client.connect(); //find user by id      //push customer object to array
+    await client.connect(); //find user by id      //push customer object to array
+    for (i = 0; i < competition.length; i++) {
+      const myCompetition = competition[i];
+      const competitionId = myCompetition._id;
+      const { title } = myCompetition;
+      const query = { _id: ObjectId(competitionId) };
+      console.log(competition);
       let isUpdatedFund = client
         .db("GainsAndLosses")
         .collection("competitions")
-        .findOneAndReplace(query, compeitition[i]);
+        .findOneAndReplace(query, myCompetition);
       await isUpdatedFund;
-      arr.push(true);
+      arr.push(`${title} has been updated`);
     }
     return arr;
   } catch (error) {
@@ -342,15 +334,6 @@ async function sendtoDB(collection, data) {
   return deletedCollection;
 }
 
-//find customer, customer parameter is the email address
-async function findCustomer(customer) {
-  await client.connect();
-  let data = client
-    .db("social_finance")
-    .collection("financeUsers")
-    .findOne({ _id: customer }); //find customer by email
-  return data; //if found data will be the object if not found will return null
-}
 async function getCustomers() {
   await client.connect();
   // let database = await client.db('sample_analytics').collection('customers').find().limit(10); //return the first 10 docuents
@@ -428,22 +411,6 @@ async function updateUserById(db, collection, userObject) {
   }
 }
 
-//used to find name proprerties(Mongo Object) that much the searchCriteria parameters
-async function findSearchMatches(searchCriteria) {
-  console.log(["search criteria", searchCriteria]);
-  await client.connect();
-  try {
-    //   await client.db('social_finance').collection('financeUsers').createIndex( { name: "text"} ) //in order to seach, have to include this line becuae I have to createIndex in Mongo(can also do in Atlas, 'name' is the name of the property that I want to search. Can only have one text index, so if there's another one, I will get an error)
-    let matchedSearches = await client
-      .db("social_finance")
-      .collection("financeUsers")
-      .find({ $text: { $search: searchCriteria } })
-      .toArray(); //search the name property for the search criteria, 'returns a 'cursor' so have to use toArray method
-    return matchedSearches;
-  } catch (error) {
-    console.log(error);
-  }
-}
 //delete friend function passing ids
 async function deleteFriend(db, collection, userId, friendId) {
   await client.connect();
@@ -466,15 +433,12 @@ async function deleteFriend(db, collection, userId, friendId) {
   }
 }
 
-exports.addUserToDb = addUserToDb;
 exports.findUser = findUser;
 exports.getCustomers = getCustomers;
-exports.findCustomer = findCustomer;
 exports.updateUser = updateUser;
 exports.findUserById = findUserById;
 exports.findCustomerAndUpdate = findCustomerAndUpdate;
 exports.updateUserById = updateUserById;
-exports.findSearchMatches = findSearchMatches;
 exports.deleteFriend = deleteFriend;
 exports.addUserToDbAppUsers = addUserToDbAppUsers;
 exports.updateUserArr = updateUserArr;
@@ -495,3 +459,4 @@ exports.incrementUserData = incrementUserData;
 exports.updateUserArrPractice = updateUserArrPractice;
 exports.updateUserFunds = updateUserFunds;
 exports.deleteFromUserArrNotId = deleteFromUserArrNotId;
+exports.cloneCollection = cloneCollection;

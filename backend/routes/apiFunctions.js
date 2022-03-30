@@ -1,7 +1,8 @@
+const axios = require("axios");
+
 const { myFunctions } = require("./backendMyFunctions");
 const alpha = require("alphavantage")({ key: `${process.env.Alpha_Key}` });
 const { checkIfDupe, makePriceObj } = myFunctions;
-
 async function getQuote(symbol) {
   try {
     const companyQuote = await alpha.data.quote(symbol);
@@ -36,5 +37,42 @@ async function getIntraday(symbol) {
   }
 }
 
+async function getCryptoQuote(symbol) {
+  try {
+    const companyQuote = await alpha.crypto.daily(symbol, "usd");
+    const finalQuote = Object.values(
+      companyQuote["Time Series (Digital Currency Daily)"]
+    )[0]["4b. close (USD)"];
+    return { symbol, sharePrice: parseFloat(finalQuote) };
+  } catch (error) {
+    console.log(error);
+    return { errorMessage: "There was an error" };
+  }
+}
+
+async function getIntradayCrypto(symbol) {
+  //receiving error because of standard api key call frequnecy(5 calls per min), althoiugh I have premium key
+  try {
+    const request = await axios.get(
+      `https://www.alphavantage.co/query?function=CRYPTO_INTRADAY&symbol=${symbol}&market=USD&interval=60min&outputsize=full&apikey=${process.env.Alpha_Key}`
+    );
+
+    const intradayPrice = await request.data;
+    const keyArr = Object.keys(intradayPrice["Time Series Crypto (60min)"]);
+    const valueArr = Object.values(intradayPrice["Time Series Crypto (60min)"]);
+    const prices = makePriceObj(keyArr, valueArr).reverse();
+    const companyIntraday = {
+      symbol: intradayPrice["Meta Data"]["2. Digital Currency Code"],
+      prices,
+    };
+    return companyIntraday;
+  } catch (error) {
+    console.log({ errorMessage: "There was an error", error });
+    return { errorMessage: "There was an error", error };
+  }
+}
+
 exports.getQuote = getQuote;
 exports.getIntraday = getIntraday;
+exports.getIntradayCrypto = getIntradayCrypto;
+exports.getCryptoQuote = getCryptoQuote;

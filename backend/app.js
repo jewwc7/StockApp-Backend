@@ -5,7 +5,7 @@ app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: false, limit: "50mb" }));
 let postRouter = require("./routes/postroute");
 let putRouter = require("./routes/putroute");
-let getRouter = require("./routes/getrouteGainsLosses");
+let getRouter = require("./routes/getroute");
 
 const cors = require("cors");
 
