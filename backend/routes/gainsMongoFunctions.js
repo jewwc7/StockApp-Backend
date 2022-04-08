@@ -1,7 +1,7 @@
 const { myFunctions } = require("./backendMyFunctions");
 const { MongoClient, ObjectId } = require("mongodb"); //don't forget to add the .MongoClient or use destructing example {MongoClient} = require('mongodb');
 const dotenv = require("dotenv").config();
-const uri = `mongodb+srv://${process.env.DB_USERNAME}:${process.env.DB_PASSWORD}@cluster0.lz4kl.mongodb.net/test?retryWrites=true&w=majority`; //getting data for my cluster, will always be used. Used Atlas connect via driver.
+const uri = `mongodb+srv://${process.env.DB_USERNAME}:${process.env.DB_PASSWORD}@cluster0.lz4kl.mongodb.net/myFirstDatabaseretryWrites=true&w=majority`; //getting data for my cluster, will always be used. Used Atlas connect via driver.
 const client = new MongoClient(uri, { useUnifiedTopology: true }); //initiating the MongoClient class, this will always be used
 
 async function cloneCollection() {
@@ -121,7 +121,6 @@ async function updateCommunityArr(collection, data) {
   // console.log("I am the data for the community", data);
   if (!data || !data.length)
     return { type: "fail", message: "Ooops There was nothing to add" };
-
   try {
     await client.connect();
     let updatedArr = client
@@ -270,6 +269,21 @@ async function updateUser({ collection, userId, prop, data }) {
   return dataBase;
 }
 
+async function setCommunityDataProp({ collection, fundId, prop, data }) {
+  await client.connect(); //find user by id      //push customer object to array
+  const mongoId = ObjectId(fundId);
+  const query = { _id: mongoId };
+  let dataBase = client
+    .db("GainsAndLosses")
+    .collection(collection)
+    .findOneAndUpdate(
+      query,
+      { $set: { [prop]: data } },
+      { returnNewDocument: true }
+    );
+  return dataBase;
+}
+
 async function getPriceFromDb(collection, symbol) {
   await client.connect(); //find user by id      //push customer object to array
   let quoteInDb = client
@@ -280,13 +294,13 @@ async function getPriceFromDb(collection, symbol) {
   return quoteInDb ? quoteInDb : false;
 }
 
-async function updateFundPrice(fund) {
+async function updateFundPrice(collection, fund) {
   const fundId = fund._id;
   const query = { _id: ObjectId(fundId) };
   await client.connect(); //find user by id      //push customer object to array
   let isUpdatedFund = client
     .db("GainsAndLosses")
-    .collection("funds")
+    .collection(collection)
     .findOneAndReplace(query, fund);
   return isUpdatedFund ? true : null;
 }
@@ -334,25 +348,34 @@ async function sendtoDB(collection, data) {
   return deletedCollection;
 }
 
-async function getCustomers() {
-  await client.connect();
-  // let database = await client.db('sample_analytics').collection('customers').find().limit(10); //return the first 10 docuents
-  let database = client
-    .db("wild_daisy")
-    .collection("products")
-    .find()
-    .limit(50); //return the first 50 docuents
-  customers = await database.toArray(); // make it an array(have to do this to get the objects)
-  return customers;
-}
+async function getCommunityData(collection, skipAmount, limit) {
+  console.log(typeof skipAmount);
+  console.log(skipAmount);
 
-async function getCommunityData(collection) {
-  await client.connect();
-  // let database = await client.db('sample_analytics').collection('customers').find().limit(10); //return the first 10 docuents
-  let database = client.db("GainsAndLosses").collection(collection).find();
-  //.limit(1); //return the first 50 docuents
-  const customers = await database.toArray(); // make it an array(have to do this to get the objects)
-  return customers;
+  try {
+    await client.connect();
+    if (
+      skipAmount !== null &&
+      skipAmount !== undefined &&
+      skipAmount !== false
+    ) {
+      let database = client
+        .db("GainsAndLosses")
+        .collection(collection)
+        .find()
+        .limit(limit ? limit : 5)
+        .skip(skipAmount); //return the first 50 docuents;
+      const customers = await database.toArray(); // make it an array(have to do this to get the objects)
+      return customers;
+    }
+    // let database = await client.db('sample_analytics').collection('customers').find().limit(10); //return the first 10 docuents
+    let database = client.db("GainsAndLosses").collection(collection).find();
+
+    const customers = await database.toArray(); // make it an array(have to do this to get the objects)
+    return customers;
+  } catch (error) {
+    console.log(error);
+  }
 }
 
 async function getMyFunds(fundId) {
@@ -369,28 +392,15 @@ async function getMyFunds(fundId) {
 }
 
 //increments and ecrements(pass negative vaule to decrement)
-async function incrementUserData({ id, keyName, collectionName, amount }) {
+async function incrementUserData({ id, keyName, collection, amount }) {
   id.toString(); //make it a string since mongo id's are strings
   const query = { _id: ObjectId(id) };
   const parsedAmount = parseFloat(amount);
   await client.connect();
   let updatedCustomer = client
     .db("GainsAndLosses")
-    .collection(collectionName)
+    .collection(collection)
     .findOneAndUpdate(query, { $inc: { [keyName]: parsedAmount } }); //find customer by ID
-  console.log("updated");
-  return updatedCustomer;
-}
-
-async function findCustomerAndUpdate(id, reactionName) {
-  id.toString(); //make it a string since mongo id's are strings
-  let customerId = new ObjectId(id); //have to import ObjectID from mongo require, then put the id as the parameter. This is how you check for ID match
-  await client.connect();
-  console.log(id, reactionName);
-  let updatedCustomer = client
-    .db("social_finance")
-    .collection("financeUsers")
-    .findOneAndUpdate({ _id: customerId }, { $inc: { [reactionName]: 1 } }); //find customer by ID
   console.log("updated");
   return updatedCustomer;
 }
@@ -434,10 +444,8 @@ async function deleteFriend(db, collection, userId, friendId) {
 }
 
 exports.findUser = findUser;
-exports.getCustomers = getCustomers;
 exports.updateUser = updateUser;
 exports.findUserById = findUserById;
-exports.findCustomerAndUpdate = findCustomerAndUpdate;
 exports.updateUserById = updateUserById;
 exports.deleteFriend = deleteFriend;
 exports.addUserToDbAppUsers = addUserToDbAppUsers;
@@ -460,3 +468,4 @@ exports.updateUserArrPractice = updateUserArrPractice;
 exports.updateUserFunds = updateUserFunds;
 exports.deleteFromUserArrNotId = deleteFromUserArrNotId;
 exports.cloneCollection = cloneCollection;
+exports.setCommunityDataProp = setCommunityDataProp;

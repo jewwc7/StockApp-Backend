@@ -4,14 +4,16 @@ const {
   makePriceObj,
   isEqualTo,
   isGreaterThan,
+  getEachDayReturns,
+
   getPercentChange,
   sortArr,
   isDateBefore,
 } = myFunctions;
-const bcrypt = require("bcrypt");
+const bcrypt = require("bcryptjs");
 const { addUserToDbAppUsers, findUser } = require("./gainsMongoFunctions");
+const { isBefore, isEqual, parseISO, isAfter } = require("date-fns");
 const saltRounds = 10;
-const password = "Fkdj^45ci@Jad";
 
 class Empire {
   constructor(id, name, hedgeFundName, cashBalance, data) {
@@ -69,8 +71,9 @@ class Competition {
     this.data = data;
   }
   hasEnded() {
-    const today = new Date();
-    return isDateBefore(today, this.ends);
+    const today = new Date(); //want to return false if hasnt ended, return true
+    const endDate = new Date(this.ends);
+    return isBefore(endDate, today); //works on saturdays becuase it compares the time as well, my end dates are all at 12am Saturday, so any time after 1230 works
   }
   getFinalStandings() {
     const updateInvestorWithTotal = getWinner(
@@ -153,6 +156,7 @@ class User {
       (this.email = email),
       (this.password = password),
       (this.data = data);
+    this.accountCreateDate = new Date();
   }
   async add(res) {
     bcrypt.hash(this.password, saltRounds, async (err, hash) => {
@@ -169,7 +173,6 @@ class User {
     const user = await findUser(this.email); //find user by email
     if (!user) return res.send(false); //if not correct email reutrn false
     const hashedPassword = user.password;
-    console.log(enteredPassword, hashedPassword); //compare passwords
     return await bcrypt.compare(
       enteredPassword,
       hashedPassword,
@@ -180,18 +183,6 @@ class User {
     );
   }
 }
-
-//where I left off, need to save passwords for allcurrent users
-bcrypt.hash("jerome", saltRounds, async (err, hash) => {
-  console.log(hash);
-  const addedUser = {
-    ...this.data,
-    password: hash,
-  };
-  console.log("yoooo", hash);
-  // const user = await addUserToDbAppUsers(addedUser);
-  return "success";
-});
 
 class CompetitionUser {
   constructor(id, name, image, competitionAmount, fund) {

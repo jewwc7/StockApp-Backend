@@ -12,9 +12,10 @@ const {
   appendTodaysPrice,
   appendCurrentPrice,
   appendIntraDayPrice,
+  getCompanyOverView,
+  appendDailyPrice,
 } = require("./asyncFunctions");
 const {
-  getCustomers,
   updateUser,
   findUserById,
   addUserToDbAppUsers,
@@ -36,14 +37,19 @@ const {
   deleteFromUserArrNotId,
   updateUserFunds,
   cloneCollection,
+  setCommunityDataProp,
 } = require("./gainsMongoFunctions");
 const {
   getQuote,
   getIntraday,
   getIntradayCrypto,
   getCryptoQuote,
+  getDaily,
 } = require("./apiFunctions");
 const { myFunctions } = require("./backendMyFunctions");
+
+const { dBCollectionTypes } = require("./types");
+
 const { Empire, Competition, User } = require("./classes");
 const {
   checkIfDupe,
@@ -53,37 +59,11 @@ const {
   getPercentChange,
   sortArr,
   isDateBefore,
+  getDatePrices,
+  deleteTickerPrices,
 } = myFunctions;
-const months = [
-  "January",
-  "February",
-  "March",
-  "April",
-  "May",
-  "June",
-  "July",
-  "August",
-  "September",
-  "October",
-  "November",
-  "December",
-];
-const currentMonth = months[new Date().getMonth()];
-const day = new Date().getDate();
-const year = new Date().getFullYear();
-const today = `${currentMonth} ${day}, ${year}`;
 
-router.post("/", async (req, res, err) => {
-  console.log("A request has been made");
-  console.log(req.body);
-  try {
-    const customers = await getCustomers();
-    res.send(customers);
-  } catch (error) {
-    console.log(error);
-    res.status(400).send(error);
-  }
-});
+const today = new Date();
 
 router.post("/addappuser", async (req, res, err) => {
   console.log("A request has been made");
@@ -103,7 +83,7 @@ router.post("/updateProfilePic", async (req, res, err) => {
   console.log("A request has been made");
   const { id, image } = req.body;
   const updateUserConfig = {
-    collection: "users",
+    collection: dBCollectionTypes.users,
     userId: id,
     prop: "image",
     data: image,
@@ -123,7 +103,7 @@ router.post("/updateProfilePic", async (req, res, err) => {
     const userFunds = userWithNewPic.createdFunds.map(async (fund) => {
       const fundId = fund._id;
       const updateCommunityDataConfig = {
-        collection: "funds",
+        collection: dBCollectionTypes.funds,
         id: fundId,
         prop: "image",
         data: image, //from req.body
@@ -158,6 +138,7 @@ router.post("/addtofavorites", async (req, res, err) => {
 
 router.post("/addcreatedfund", async (req, res, err) => {
   const tickers = req.body.tickers;
+
   const mongoID = ObjectId(); //make ID here so I can use within multiple objects
   //get price of all funds tickers
   const decrementAmount = -1000;
@@ -167,7 +148,7 @@ router.post("/addcreatedfund", async (req, res, err) => {
   //addedFUnd should be finalCreatedFUnd and add _id:
   try {
     const { createdById } = req.body;
-
+    console.log(req.body);
     const newTickerArr = await appendTodaysPrice(tickers);
     const finalCreatedFund = {
       _id: mongoID,
@@ -178,13 +159,13 @@ router.post("/addcreatedfund", async (req, res, err) => {
     const incrementConfig = {
       id: createdById,
       keyName: "cashBalance",
-      collection: "users",
+      collection: dBCollectionTypes.users,
       amount: decrementAmount,
     };
-    const addedFund = await updateUserArr(createdById, "createdFunds", [
+    const addFund = await updateUserArr(createdById, "createdFunds", [
       { ...finalCreatedFund },
     ]);
-    const addedFundCommunity = await updateCommunityArr("funds", [
+    const addFundCommunity = await updateCommunityArr(dBCollectionTypes.funds, [
       { ...finalCreatedFund },
     ]);
     incrementUserData(incrementConfig);
@@ -199,6 +180,7 @@ router.post("/addcreatedfund", async (req, res, err) => {
 router.post("/addcompetition", async (req, res, err) => {
   /* investmentsAllowed , ["# of Investestments"] ,amount,,[" # of Investors"],  Length8*/
   // console.log(req.body);
+  const collection = dBCollectionTypes.competitions;
   const nextMonday = new Date();
   nextMonday.setDate(
     nextMonday.getDate() + ((((7 - nextMonday.getDay()) % 7) + 1) % 7 || 7)
@@ -220,47 +202,25 @@ router.post("/addcompetition", async (req, res, err) => {
     if (isEqualTo(20, days)) return 26;
     return 5; //default will be a week
   }
-
-  const {
-    name,
-    length,
-    amount,
-    createdByName,
-    createdById,
-    image,
-    investmentsAllowed,
-    investorsAllowed,
-    selectedFund,
-  } = req.body;
-
-  const tradingDays = convertToTradingDays(length);
-  const endDate = addEndDate(nextMonday, tradingDays);
-
-  const mongoID = ObjectId(); //make ID here so I can use within multiple objects
-  const competionObj = {
-    _id: mongoID,
-    createdById: createdById,
-    createdByName: createdByName,
-    title: name,
-    investmentsAllowed: investmentsAllowed || 5,
-    investorsAllowed: investorsAllowed || 5,
-    fundsInPlay: [selectedFund],
-    amount: amount,
-    length: length,
-    starts: nextMonday.toLocaleDateString(),
-    ends: endDate.toLocaleDateString(),
-  };
-
   try {
-    const addedToUserComps = await updateUserArr(
+    const {
+      name,
+      length,
+      amount,
+      createdByName,
       createdById,
-      "createdCompetitions",
-      [competionObj]
-    );
-    const addedCompCommunity = await updateCommunityArr("competitions", [
-      competionObj,
-    ]);
+      image,
+      investmentsAllowed,
+      investorsAllowed,
+      selectedFund,
+    } = req.body;
+    const tradingDays = convertToTradingDays(length);
+    const endDate = addEndDate(nextMonday, tradingDays);
 
+    //want to delete tickerprices in the fund,
+    deleteTickerPrices(selectedFund);
+
+    const mongoID = ObjectId(); //make ID here so I can use within multiple objects
     const userObj = {
       userId: createdById, //joined players object
       name: createdByName,
@@ -268,16 +228,33 @@ router.post("/addcompetition", async (req, res, err) => {
       fundInPlay: selectedFund,
       competitionId: mongoID.toString(),
     };
-    const config = {
-      collection: "competitions",
-      competitionId: mongoID,
-      arrName: "joinedInvestors",
-      data: [userObj],
+    const competionObj = {
+      _id: mongoID,
+      createdById: createdById,
+      createdByName: createdByName,
+      title: name,
+      investmentsAllowed: investmentsAllowed || 5,
+      investorsAllowed: investorsAllowed || 5,
+      fundsInPlay: [selectedFund],
+      amount: amount,
+      length: length,
+      joinedInvestors: [userObj], //add the user obj
+      starts: nextMonday.toLocaleDateString(),
+      ends: endDate.toLocaleDateString(),
     };
+
+    const addedToUserComps = await updateUserArr(
+      createdById,
+      "createdCompetitions",
+      [competionObj]
+    );
+    const addedCompCommunity = await updateCommunityArr(collection, [
+      competionObj,
+    ]);
+
     const addToCreatorComps = await updateUserArr(createdById, "competitions", [
       { id: mongoID, joinDate: today },
     ]);
-    const creatorToCommunityFund = await addUsertoCommunityArr(config);
     res.send(mongoID);
   } catch (error) {
     console.log(error);
@@ -285,58 +262,53 @@ router.post("/addcompetition", async (req, res, err) => {
   }
 });
 
-router.post("/savequotes", async (req, res, err) => {
-  /* investmentsAllowed , ["# of Investestments"] ,amount,,[" # of Investors"],  Length8*/
-  // console.log(req.body);
+router.post("/updatedefaultstocks", async (req, res, err) => {
+  const communityCollection = dBCollectionTypes.defaultStocks; //use types after confirming everything works
+  const priceInDbCollection = dBCollectionTypes.stockPrices;
+  let apiCallsForPrice = 0;
+  const apiCallPriceArr = [];
   try {
-    const updatedDefaultStocks = req.body.map(async (symbol, index) => {
+    deleteCollectionDocs(communityCollection);
+    const updateDefaultStocks = req.body.map(async (symbol, index) => {
       symbol.trim();
-      const companyQuote = await alpha.data.quote(symbol);
-      const companyOverviewRequest = await axios.get(
-        `https://www.alphavantage.co/query?function=OVERVIEW&symbol=${symbol}&apikey=EUIY8ECEM4DJSHYU`
-      );
-      const companyOverview = await companyOverviewRequest.data;
-      const stockObj = {
-        Symbol: companyQuote["Global Quote"]["01. symbol"],
-        currentPrice: companyQuote["Global Quote"]["05. price"],
-        percentChange: companyQuote["Global Quote"]["10. change percent"],
-        open: companyQuote["Global Quote"]["02. open"],
-        companyOverview,
-      };
-      updateCommunityArr("default_stocks", [stockObj]);
+      const companyOverview = await getCompanyOverView(symbol);
+      const quoteInDB = await getPriceFromDb(priceInDbCollection, symbol);
+      if (quoteInDB) {
+        return {
+          Symbol: quoteInDB.symbol,
+          currentPrice: quoteInDB.sharePrice,
+          companyOverview,
+          updated: new Date(),
+        };
+      } else {
+        apiCallsForPrice = apiCallsForPrice + 1;
+        apiCallPriceArr.push(symbol);
+        const companyQuote = await getQuote(symbol);
+        return {
+          Symbol: companyQuote["Global Quote"]["01. symbol"],
+          currentPrice: companyQuote["Global Quote"]["05. price"],
+          companyOverview,
+          updated: new Date(),
+        };
+      }
     });
-    await Promise.all(updatedDefaultStocks);
-    res.send("All done :)");
+    const updatedDefaultStocks = await Promise.all(updateDefaultStocks);
+    const defaultStocksUpdated = await updateCommunityArr(communityCollection, [
+      ...updatedDefaultStocks,
+    ]);
+    const updateSuccessful = isEqualTo("success", defaultStocksUpdated.type);
+    res.send(
+      updateSuccessful
+        ? {
+            msg: `"All done", there were ${apiCallsForPrice} apiCalls for price`,
+            apiCallPriceArr,
+          }
+        : "Update Failed"
+    );
   } catch (error) {
     console.log(error);
-    res.status(400).send(error);
+    res.status().send(error);
   }
-});
-
-router.post("/practice", async (req, res, err) => {
-  const months = [
-    "January",
-    "February",
-    "March",
-    "April",
-    "May",
-    "June",
-    "July",
-    "August",
-    "September",
-    "October",
-    "November",
-    "December",
-  ];
-  const currentMonth = months[new Date().getMonth()];
-  const day = new Date().getDate();
-  const year = new Date().getFullYear();
-  const today = `${currentMonth} ${day}, ${year}`;
-  const newBody = {
-    ...req.body,
-    createDate: today,
-  };
-  res.send(newBody);
 });
 
 router.post("/addfollower", async (req, res, err) => {
@@ -378,35 +350,41 @@ router.post("/sendinvitation", async (req, res, err) => {
 
 ///used when accepting invitation to competition or joining a competition
 router.post("/acceptinvitation", async (req, res, err) => {
+  const collection = dBCollectionTypes.competitions;
   //req.body has the competitionId and the userId(which is the creatorId)
   console.log(`Thanks for Joining ${req.body.name}`); //this works, just work on the front end
-  const competitionId = req.body.competitionId;
-  const acceptorId = req.body.userId;
-  const config = {
-    collection: "competitions",
-    competitionId,
-    arrName: "joinedInvestors",
-    data: [req.body],
-  };
-  const dataConfig = {
-    collection: "competitions",
-    id: competitionId,
-  };
-  const deleteUserArrConfig = {
-    userId: acceptorId, //checking if equal to
-    arr: "messages",
-    condition: ObjectId(competitionId), //
-  };
-  function checkNumberOfInvestors(investmentsAllowed, investorsInCompetition) {
-    if (
-      isGreaterThan(investmentsAllowed, investorsInCompetition) ||
-      isEqualTo(investmentsAllowed, investorsInCompetition)
-    ) {
-      return true;
-    }
-    return false;
-  }
   try {
+    const { fundInPlay } = req.body;
+    deleteTickerPrices(fundInPlay);
+    const competitionId = req.body.competitionId;
+    const acceptorId = req.body.userId;
+    const config = {
+      collection,
+      competitionId,
+      arrName: "joinedInvestors",
+      data: [req.body],
+    };
+    const dataConfig = {
+      collection,
+      id: competitionId,
+    };
+    const deleteUserArrConfig = {
+      userId: acceptorId, //checking if equal to
+      arr: "messages",
+      condition: ObjectId(competitionId), //
+    };
+    function checkNumberOfInvestors(
+      investmentsAllowed,
+      investorsInCompetition
+    ) {
+      if (
+        isGreaterThan(investmentsAllowed, investorsInCompetition) ||
+        isEqualTo(investmentsAllowed, investorsInCompetition)
+      ) {
+        return true;
+      }
+      return false;
+    }
     const competition = await findData(dataConfig); //get competition
     const { joinedInvestors, createdById, investorsAllowed } = competition; //pull out the joinedInvestors Arr
     const hasTooManyInvestors = checkNumberOfInvestors(
@@ -482,10 +460,11 @@ router.post("/deleteinvite", async (req, res, err) => {
   }
 });
 router.post("/likefund", async (req, res, err) => {
+  const collection = dBCollectionTypes.funds;
   //req.body has the competitionId and the userId(which is the creatorId)
   console.log(req.body); //this works just need to match the payload from the front end
   const config = {
-    collection: "funds",
+    collection,
     competitionId: req.body.fundId,
     arrName: "likes",
     data: [req.body],
@@ -506,9 +485,9 @@ router.post("/likefund", async (req, res, err) => {
 
 //when user clicks bear
 router.post("/addBullUser", async (req, res, err) => {
-  console.log(req.body); //this works just need to match the payload from the front end
+  const collection = dBCollectionTypes.funds;
   const config = {
-    collection: "funds",
+    collection,
     competitionId: req.body.fundId, //is not actually competiitonID, that is just the parameter name
     arrName: "bulls",
     data: [req.body],
@@ -523,8 +502,10 @@ router.post("/addBullUser", async (req, res, err) => {
 });
 //when user clicks bear
 router.post("/addBearUser", async (req, res, err) => {
+  const collection = dBCollectionTypes.funds;
+
   const config = {
-    collection: "funds",
+    collection: collection,
     competitionId: req.body.fundId, //is not actually competiitonID, that is just the parameter name
     arrName: "bears",
     data: [req.body],
@@ -538,9 +519,11 @@ router.post("/addBearUser", async (req, res, err) => {
   }
 });
 router.post("/onboardingviewed", async (req, res, err) => {
+  const collection = dBCollectionTypes.users;
+
   console.log(req.body); //this works just need to match the payload from the front end
   const updateUserConfig = {
-    collection: "users",
+    collection,
     userId: req.body.id,
     prop: "firstLogin",
     data: false,
@@ -557,11 +540,10 @@ router.post("/onboardingviewed", async (req, res, err) => {
 /////////////////////////////////////Nightly Post routes Starts
 
 router.post("/addstockprices", async (req, res, err) => {
+  const collection = dBCollectionTypes.stockPrices;
   const symbols = req.body;
-  //req.body has the competitionId and the userId(which is the creatorId)
-  // console.log(req.body); //this works just need to match the payload from the front end
   try {
-    await deleteCollectionDocs("stock prices"); //delete prior data
+    await deleteCollectionDocs(collection); //delete prior data
     const stocksPrices = symbols.map(async (symbol, index) => {
       const quote = await getQuote(symbol);
       const quoteObject = {
@@ -572,7 +554,7 @@ router.post("/addstockprices", async (req, res, err) => {
     });
     const finalStockPrices = await Promise.all(stocksPrices);
     const pricesUpdated = await updateCommunityArr(
-      "stock prices",
+      collection,
       finalStockPrices
     );
     const updateSuccessful = isEqualTo("success", pricesUpdated.type);
@@ -585,12 +567,15 @@ router.post("/addstockprices", async (req, res, err) => {
 
 router.post("/addintradayprices", async (req, res, err) => {
   const symbols = req.body;
-  const collection = "intraday_prices";
+
+  const collection = dBCollectionTypes.intraDayPrices;
+  let apiCalls = 0;
   try {
     await deleteCollectionDocs(collection); //delete prior data
     const intradayPrices = symbols.map(async (symbol, index) => {
       ///get quote for each symbol and push into arr
       const intradayPrice = await getIntraday(symbol);
+      apiCalls = apiCalls + 1;
       const quoteObject = {
         ...intradayPrice,
         updated: new Date(),
@@ -600,7 +585,11 @@ router.post("/addintradayprices", async (req, res, err) => {
     const finalStocks = await Promise.all(intradayPrices);
     const pricesUpdated = await updateCommunityArr(collection, finalStocks);
     const updateSuccessful = isEqualTo("success", pricesUpdated.type);
-    res.send(updateSuccessful ? "Update Successful" : "Update Failed");
+    res.send(
+      updateSuccessful
+        ? `Update Successful, there were ${apiCalls} api calls`
+        : "Update Failed"
+    );
   } catch (error) {
     console.log(error);
     //res.send(error);
@@ -609,18 +598,23 @@ router.post("/addintradayprices", async (req, res, err) => {
 
 router.post("/updatefunds", async (req, res, err) => {
   //return tickers with prices appened
+  const collection = dBCollectionTypes.funds;
+
   try {
-    const allFunds = await getCommunityData("funds");
+    const allFunds = await getCommunityData(collection);
     const allFundsMapped = allFunds.map(async (fund, index) => {
-      const { tickers } = fund; //get ticker arr
+      const { tickers, name, sold } = fund; //get ticker arr
+      //if fund sold, rturn  msg saying this fund sold
+      if (sold) return `Fund ${name} was sold and won't be updated"`;
+
       const updatedTickers = await appendCurrentPrice(tickers); //updated tickers with current prices
       const updatedFund = {
         ...fund, //return the orginal fund, but replace the ticker proprtey with the newTickerArr
         tickers: updatedTickers,
         updatedDate: today,
       };
-      updateFundPrice(updatedFund); //find and replace mongo db(by _id)
-      return "Updated";
+      updateFundPrice(collection, updatedFund); //find and replace mongo db(by _id)
+      return `Fund ${name} "Updated"`;
     });
     const allFundsUpdated = await Promise.all(allFundsMapped);
     //get current price for today(update daily)
@@ -632,17 +626,19 @@ router.post("/updatefunds", async (req, res, err) => {
 });
 
 router.post("/updatecompetitionfunds", async (req, res, err) => {
+  const collection = dBCollectionTypes.competitions;
   try {
-    const allCompetitions = await getCommunityData("competitions"); //get competiitons and dstructure each fund from the joined investor arr
+    const allCompetitions = await getCommunityData(collection); //get competiitons and dstructure each fund from the joined investor arr
     const mappedCompetitions = allCompetitions.map(
       async (competition, index) => {
         const { joinedInvestors, starts, ends, results, title } = competition; //get ticker arr
         const today = new Date();
         const startDate = new Date(starts);
         const endDate = new Date(ends);
+
         if (
-          isBefore(today, startDate) ||
-          isAfter(today, endDate) ||
+          isBefore(today, startDate) || //is 1st before second-start
+          isAfter(today, endDate) || //is first after second-
           isEqual(today, endDate) ||
           results
         )
@@ -674,8 +670,9 @@ router.post("/updatecompetitionfunds", async (req, res, err) => {
 });
 
 router.post("/determineWinner", async (req, res, err) => {
+  const collection = dBCollectionTypes.competitions;
   try {
-    const allCompetitions = await getCommunityData("competitions"); //get competiitons and dstructure each fund from the joined investor arr
+    const allCompetitions = await getCommunityData(collection); //get competiitons and dstructure each fund from the joined investor arr
     const finalBoard = allCompetitions.map(async (competition, index) => {
       const { _id, title, amount, starts, ends, results } = competition;
       const competitionClass = new Competition(
@@ -698,12 +695,12 @@ router.post("/determineWinner", async (req, res, err) => {
       competitionClass.replaceJoinedInvestors(finalStanding);
       const resultsData = competitionClass.resultsData();
       const replaceConfig = {
-        collection: "competitions",
+        collection: collection,
         id: _id,
         data: { ...competitionClass.data, results: resultsData }, //important only want the data, not the rest of the class. Also adding the results prop forMongo
       };
-      await replaceCommunityData(replaceConfig);
-      await updateUserRecord(resultsData, competitionClass.amount);
+      //    await replaceCommunityData(replaceConfig);
+      //  await updateUserRecord(resultsData, competitionClass.amount);
       return { compId: _id, msg: "This Competition has been updated" };
     });
     const updatedCompetition = await Promise.all(finalBoard);
@@ -717,12 +714,13 @@ router.post("/determineWinner", async (req, res, err) => {
 async function updateUserRecord(rankingObj, competitionAmount) {
   const { winner, losers } = rankingObj;
   const keyName = "cashBalance";
-  const collectionName = "users";
+  const collection = dBCollectionTypes.users;
+
   //delete winner.fundInPlay.tickers ?
   const winnerConfig = {
     id: winner.userId,
     keyName,
-    collectionName,
+    collection,
     amount: winner.finalBalance,
   };
   try {
@@ -733,7 +731,7 @@ async function updateUserRecord(rankingObj, competitionAmount) {
       const loserConfig = {
         id: loser.userId,
         keyName,
-        collectionName,
+        collection,
         amount: negativeAmount,
       };
       await updateUserArr(loser.userId, "losses", [loser]);
@@ -751,9 +749,9 @@ async function updateUserRecord(rankingObj, competitionAmount) {
 //users funds from the community and updates the users createdFunds array with
 //updated fund,, look to make this cleaner
 router.post("/updateuserfunds", async (req, res, err) => {
+  const collection = dBCollectionTypes.users;
   try {
-    const users = await getCommunityData("users");
-
+    const users = await getCommunityData(collection);
     //move users into their own arrays
     const updatedUsers = users.map((user) => {
       const userWithUpdates = {
@@ -794,39 +792,39 @@ router.post("/updateuserfunds", async (req, res, err) => {
     });
 
     //update User
-    const updatedUser = await usersUpdated.flat().map(async (user) => {
+    const updatedUser = usersUpdated.flat().map(async (user) => {
       if (!user.updatedFunds.length) return;
       try {
         const updateUserFundConfig = {
           id: user.id, //checking if equal to
           arrName: "createdFunds",
-          collection: "users",
+          collection: dBCollectionTypes.users,
           data: [...user.updatedFunds],
         };
         console.log(updateUserFundConfig);
         await updateUserFunds(updateUserFundConfig);
-        return `${user.id} was updated`;
+        return `User ${user.id} funds were updated`;
       } catch (error) {
         console.log(error);
         return { error };
       }
     });
-    await updatedUser;
-    res.send(updatedUser);
+    const usersAreUpdated = await Promise.all(updatedUser);
+    res.send(usersAreUpdated);
   } catch (error) {
     console.log(error);
     res.send(error);
   }
 });
 router.post("/updateUsersBalance", async (req, res, err) => {
-  //console.log(`A sell fund request made by ${req.body.userId}`); //this works, just work on the front end
+  const collection = dBCollectionTypes.users;
   try {
-    const users = await getCommunityData("users");
+    const users = await getCommunityData(collection);
     const empireUsers = users.map(async (user, index) => {
-      const { _id, name, hedgeFundName, cashBalance } = user;
+      const { _id, firstName, hedgeFundName, cashBalance } = user;
       const empireUser = new Empire(
         _id,
-        name,
+        firstName,
         hedgeFundName,
         cashBalance,
         user
@@ -834,11 +832,10 @@ router.post("/updateUsersBalance", async (req, res, err) => {
       const totalBalance = empireUser.totalBalance();
       const userPrice = {
         value: totalBalance,
-        timestamp: today,
+        timestamp: new Date(),
       };
-      console.log(empireUser.id);
       await updateUserArr(empireUser.id, "empireDailyPrice", [userPrice]);
-      return { msg: `${name} price has been updated to ${totalBalance}` };
+      return { msg: `${firstName} price has been updated to ${totalBalance}` };
     });
     const allEmpireUsersUpdated = await Promise.all(empireUsers);
     res.send(allEmpireUsersUpdated);
@@ -851,14 +848,14 @@ router.post("/updateUsersBalance", async (req, res, err) => {
 /////////////////////////////////////////////Nightly Routes Ends
 
 router.post("/sellfund", async (req, res, err) => {
+  const collection = dBCollectionTypes.users;
   console.log(`A sell fund request made by ${req.body.userId}`); //this works, just work on the front end
   const cashBalanceConfig = {
     id: req.body.userId,
-    collectionName: "users",
+    collection: collection,
     keyName: "cashBalance",
     amount: req.body.amount,
   };
-  console.log(cashBalanceConfig);
   try {
     const user = await findUserById(req.body.userId);
     //filter out the deleted fund
@@ -866,17 +863,22 @@ router.post("/sellfund", async (req, res, err) => {
       const stringId = fund._id.toString(); //make string because is a MongoId object
       return stringId !== req.body.fundId;
     });
-
-    console.log(newUserCreatedFunds);
     const updateUserFundConfig = {
       id: req.body.userId, //checking if equal to
       arrName: "createdFunds",
-      collection: "users",
+      collection: collection,
       data: [...newUserCreatedFunds],
     };
     await updateUserFunds(updateUserFundConfig); //add new fundArr to user(overrides prior fundArr($set))
     await incrementUserData(cashBalanceConfig); //add money from teh fund to cash balance
-    res.send("hahahah");
+    res.send(` ${req.body.userId}cash balance increased by ${req.body.amount}`);
+    const setCommunityDataPropConfig = {
+      fundId: req.body.fundId, //checking if equal to
+      prop: "sold",
+      collection: dBCollectionTypes.funds,
+      data: true,
+    };
+    setCommunityDataProp(setCommunityDataPropConfig);
   } catch (error) {
     console.log(error);
     res.send(error);
@@ -898,6 +900,33 @@ router.post("/practicefund", async (req, res, err) => {
     };
 
     res.send(finalCreatedFund);
+  } catch (error) {
+    console.log(error);
+    res.status(400).send(error);
+  }
+});
+
+//this is only ran periodically, basically, when a stock split happens,
+router.post("/updatefundsDailyPrice", async (req, res, err) => {
+  //return tickers with prices appened
+  const collection = dBCollectionTypes.funds;
+
+  try {
+    const allFunds = await getCommunityData(collection);
+    const allFundsMapped = allFunds.map(async (fund, index) => {
+      const { tickers, createDate } = fund; //get ticker arr
+      const updatedTickers = await appendDailyPrice(tickers, createDate); //updated tickers with current prices
+      const updatedFund = {
+        ...fund, //return the orginal fund, but replace the ticker proprtey with the newTickerArr
+        tickers: updatedTickers,
+        updatedDate: today,
+      };
+      updateFundPrice(collection, updatedFund); //find and replace mongo db(by _id)
+      return "Updated";
+    });
+    const allFundsUpdated = await Promise.all(allFundsMapped);
+    //get current price for today(update daily)
+    res.send(allFundsUpdated);
   } catch (error) {
     console.log(error);
     res.status(400).send(error);
@@ -968,5 +997,50 @@ router.post("/addintradayCryptoprices", async (req, res, err) => {
     //res.send(error);
   }
 }); */
+
+////////////////////////////////Test ROutes /////////////////////////////////////////////////////////
+router.post("/practiceintra", async (req, res, err) => {
+  const { symbol, startDate } = req.body;
+  try {
+    const intradayPrice = await getIntraday(symbol);
+    const priceObject = getDatePrices(
+      intradayPrice.prices.reverse(), //don't need to reverse api, comes newest to oldest
+      startDate
+    );
+    console.log(priceObject);
+    res.send(priceObject);
+  } catch (error) {
+    console.log(error);
+    res.status(400).send(error);
+  }
+});
+
+router.post("/updatefundspractice", async (req, res, err) => {
+  //return tickers with prices appened
+  const collection = dBCollectionTypes.funds;
+
+  try {
+    const allFunds = await getCommunityData(collection);
+    const allFundsMapped = allFunds.map(async (fund, index) => {
+      const { tickers, createDate } = fund; //get ticker arr
+      const updatedTickers = await appendDailyPrice(tickers, createDate); //updated tickers with current prices
+      const updatedFund = {
+        ...fund, //return the orginal fund, but replace the ticker proprtey with the newTickerArr
+        tickers: updatedTickers,
+        updatedDate: today,
+      };
+      updateFundPrice(collection, updatedFund); //find and replace mongo db(by _id)
+      return "Updated";
+    });
+    const allFundsUpdated = await Promise.all(allFundsMapped);
+    //get current price for today(update daily)
+    res.send(allFundsUpdated);
+  } catch (error) {
+    console.log(error);
+    res.status(400).send(error);
+  }
+});
+
+//////////////////////////////////Test Routes Ends///////////////////////////////////////////
 
 module.exports = router;

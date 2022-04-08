@@ -1,3 +1,5 @@
+const { isBefore, getDay } = require("date-fns");
+
 const myFunctions = {
   add: function (a, b) {
     return a + b;
@@ -79,6 +81,81 @@ const myFunctions = {
     const localComparison = comparisonDateOne.toLocaleDateString();
     console.log([localTOday, localComparison]);
     return comparisonDateOne < todayOne;
+  },
+  getDatePrices: function (priceArr, dateChecking) {
+    //based on Start Date, array should be from newst date to oldes date
+    if (!Array.isArray(priceArr)) throw new Error("Must pass an Array");
+    const startDate = new Date(dateChecking);
+    const pricesWithinStartDate = [];
+    const { length } = priceArr;
+    for (let i = 0; i < length; i++) {
+      const dateObject = priceArr[i];
+      const dateOfPrice = new Date(dateObject.timestamp);
+      if (!isBefore(startDate, dateOfPrice)) {
+        //if false that ddate ofPrice before keep going, if it's true, return
+        console.log("Im breaking here", dateObject);
+        break;
+      }
+      pricesWithinStartDate.push(dateObject); //keep loop going, no returns
+    }
+    return [...pricesWithinStartDate].reverse();
+  },
+  getEachDayReturns: function (investorArr) {
+    if (!Array.isArray(investorArr) || !investorArr.length) return [0];
+    let sum = []; //first array
+    function checkArrNumber(arrNumber, index) {
+      if (arrNumber > 0) {
+        let previousValue = sum[index] ? sum[index].value : false;
+        return previousValue;
+      } else {
+        let previousValue = sum[index] ? sum[index].value || 0 : 0; //check if there is anything at index and if so checkes if it has value
+        return previousValue;
+        //if no value property return value of the last added obj. If nothing at index return 0. Needed when lengths of array differs
+      }
+    }
+    //need to sort array from lowest length to highest, so array with more data(higher length) that data can be removed as it messes up the cart figures
+    const sortedInvestorArr = investorArr
+      .sort(function (a, b) {
+        return b.length - a.length;
+      })
+      .reverse();
+    sortedInvestorArr.forEach((arr, arrNumber) => {
+      arr.forEach((item, index) => {
+        const { timestamp } = item;
+        const priorValue = checkArrNumber(arrNumber, index);
+        if (priorValue === false) {
+          const { length } = sum;
+          let obj = {
+            ...sum[length - 1],
+          };
+          sum[index] = obj; //make new index equal to last
+          return;
+        }
+        let obj = {
+          timestamp,
+          value: item.value + priorValue,
+        };
+        sum[index] = obj;
+        return;
+      });
+    });
+    return sum;
+  },
+  deleteTickerPrices: function (obj = {}) {
+    if (!Object.keys(obj)) {
+      console.log("must pass an object");
+      return;
+    }
+    obj.tickers.forEach((ticker) => {
+      if (!ticker.tickerprices || !ticker.tickerprices.prices) return;
+      ticker.tickerprices.prices.length = 0;
+    });
+  },
+  checkIfSundayOrMonday: function () {
+    const result = getDay(new Date());
+    if (result === 0) return 2; //if 0(sunday) subtract 2 days(to getFridays data)
+    if (result === 1) return 3; //if 1(mondday) subtract 3days(to getFridays data)
+    return 1; //all other days just subtract one
   },
 };
 

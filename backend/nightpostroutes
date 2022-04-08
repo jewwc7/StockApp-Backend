@@ -1,0 +1,22 @@
+//runs after funds are updated
+"./updateuserfunds";
+
+//gets full intra day and stores in mongo, is ok to have null as objects as this
+is a reference collection, only grabbing data if there
+"./addintradayprices
+
+//gets quote and stores in mongo
+"./addstockprices"
+//updates community funds, must run before updating users individual fud=nds
+"./updatefunds"
+
+
+/gets prices for my default stocks, has some null values(stocks not on market), that are filterd out on front end
+/this collection is called directly on frontend
+"./updateDefaultStocks
+
+
+//WHen only appeneding based on start date
+
+WHen fetching intraday, daily data from backend starts arr starts from the newest date
+///////////WHen fetching intraday, daily data from backend starts arr starts from the oldest date, so need to reverse
