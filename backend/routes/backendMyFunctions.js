@@ -157,6 +157,33 @@ const myFunctions = {
     if (result === 1) return 3; //if 1(mondday) subtract 3days(to getFridays data)
     return 1; //all other days just subtract one
   },
+  getCompetitionReturns: function (
+    percentOfFund,
+    portfolioTotal,
+    intradayPrices
+  ) {
+    const stockPrices = [...intradayPrices];
+    const startDate = stockPrices[0].timestamp;
+
+    let initalInvestment = (percentOfFund * portfolioTotal) / 100; //dollar amount invested
+    const myReturns = [{ value: initalInvestment, timestamp: startDate }]; //starting prcie needs to be intital dollar amount invested
+    //snend to be an object and time stamp should be start of bet
+    //push each dollar return into myReturns array, so can display on chart
+    stockPrices.forEach((price, index) => {
+      const { value, timestamp } = price;
+      if (index === 0) {
+        //if at start compare index 0 and 1
+        const secondPrice = stockPrices[index + 1].value;
+        initalInvestment = initalInvestment * (value / secondPrice);
+        return myReturns.push({ value: initalInvestment, timestamp });
+      }
+      if (index === 1) return; //don't need to compare index 1 as above code does it
+      const priorPrice = stockPrices[index - 1].value; //chaining, because at index 0 -1, there is not value(-1)
+      initalInvestment = initalInvestment * (value / priorPrice); //else stock went up are stayed flat
+      return myReturns.push({ value: initalInvestment, timestamp });
+    });
+    return myReturns;
+  },
 };
 
 const dummyArr = [

@@ -4,6 +4,7 @@ const {
   makePriceObj,
   isEqualTo,
   isGreaterThan,
+  getEachDayReturns,
   getPercentChange,
   sortArr,
   isDateBefore,
@@ -82,15 +83,13 @@ class Competition {
       "finalBalance",
       "descending"
     );
+
     return sortedInvestors;
   }
   finalStandings() {
     return this.getFinalStandings();
   }
-  replaceJoinedInvestors(newArr) {
-    this.data.joinedInvestors = [...newArr];
-    return this.data.joinedInvestors;
-  }
+
   resultPropConfig() {
     return {
       collection: "competition",
@@ -140,7 +139,8 @@ function getWinner(investorArr, amount) {
       fundInPlay
     );
     const currentInvestmentValue = myInvestor.currentInvestmentValue(); //get last value of arr(represent the final value)
-    return { userId, finalBalance: currentInvestmentValue };
+    const me = { ...myInvestor, finalBalance: currentInvestmentValue };
+    return me;
   });
   return newJoinedInvestors;
 }

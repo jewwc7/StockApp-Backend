@@ -690,8 +690,7 @@ router.post("/determineWinner", async (req, res, err) => {
           compId: _id,
           msg: "This Competition results were already determined",
         };
-      const finalStanding = competitionClass.getFinalStandings();
-      competitionClass.replaceJoinedInvestors(finalStanding);
+      const finalStanding = competitionClass.finalStandings();
       const resultsData = competitionClass.resultsData();
       const replaceConfig = {
         collection: collection,
