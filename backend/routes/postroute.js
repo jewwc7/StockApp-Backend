@@ -638,8 +638,7 @@ router.post("/updatecompetitionfunds", async (req, res, err) => {
 
         if (
           isBefore(today, startDate) || //is 1st before second-start
-          isAfter(today, endDate) || //is first after second-
-          isEqual(today, endDate) ||
+          // isAfter(today, endDate) || //is first after second- not needed if i determine winners on saturday. ANd aws time zones mess this up
           results
         )
           return false;
