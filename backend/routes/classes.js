@@ -83,7 +83,6 @@ class Competition {
       "finalBalance",
       "descending"
     );
-
     return sortedInvestors;
   }
   finalStandings() {
@@ -182,19 +181,19 @@ class User {
 }
 
 class CompetitionUser {
-  constructor(id, name, image, competitionAmount, fund) {
+  constructor(id, name, image, competitionAmount, fundInPlay) {
     //fund is the fundIn Play info
     this.id = id;
     this.name = name;
     this.image = image;
     this.competitionAmount = competitionAmount;
-    this.fund = fund;
-    this.fundName = this.fund.name;
-    this.fundTicker = this.fund.ticker;
+    this.fundInPlay = fundInPlay;
+    this.fundName = this.fundInPlay.name;
+    this.fundTicker = this.fundInPlay.ticker;
   }
   getPersonalReturns(competionAmount = this.competitionAmount) {
-    if (!this.fund.tickers || !this.fund.tickers.length) return 0; //if this are no createdFunds
-    return this.fund.tickers.map((ticker, index) => {
+    if (!this.fundInPlay.tickers || !this.fundInPlay.tickers.length) return 0; //if this are no createdFunds
+    return this.fundInPlay.tickers.map((ticker, index) => {
       const { symbol } = ticker;
       if (!competionAmount) {
         competionAmount = 10;
@@ -218,7 +217,7 @@ class CompetitionUser {
   }
 
   basicTickerData() {
-    return this.fund.tickers.map((ticker, index) => {
+    return this.fundInPlay.tickers.map((ticker, index) => {
       const { symbol, percentOfFund } = ticker;
       return { symbol, percentOfFund };
     });
