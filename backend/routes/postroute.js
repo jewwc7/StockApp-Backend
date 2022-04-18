@@ -385,14 +385,27 @@ router.post("/acceptinvitation", async (req, res, err) => {
       }
       return false;
     }
+    function hasStarted(dateChecking) {
+      const today = new Date();
+      const start = new Date(dateChecking);
+      if (isEqual(today, start) || isAfter(today, start)) {
+        return true;
+      }
+      return false;
+    }
     const competition = await findData(dataConfig); //get competition
-    const { joinedInvestors, createdById, investorsAllowed } = competition; //pull out the joinedInvestors Arr
+    const { joinedInvestors, createdById, investorsAllowed, starts } =
+      competition; //pull out the joinedInvestors Arr
     const hasTooManyInvestors = checkNumberOfInvestors(
       investorsAllowed,
       joinedInvestors.length
     );
     if (hasTooManyInvestors) {
       res.send({ type: "fail", message: "Competition Full" });
+      return;
+    }
+    if (hasStarted(starts)) {
+      res.send({ type: "fail", message: "Competition Started" });
       return;
     }
     const joinedInvestorsId = joinedInvestors.map(
@@ -690,8 +703,10 @@ router.post("/determineWinner", async (req, res, err) => {
           compId: _id,
           msg: "This Competition results were already determined",
         };
-      const finalStanding = competitionClass.finalStandings();
+      const finalStanding = competitionClass.getFinalStandings();
+      // competitionClass.replaceJoinedInvestors(finalStanding);
       const resultsData = competitionClass.resultsData();
+      console.log(resultsData);
       const replaceConfig = {
         collection: collection,
         id: _id,
@@ -716,23 +731,23 @@ async function updateUserRecord(rankingObj, competitionAmount) {
 
   //delete winner.fundInPlay.tickers ?
   const winnerConfig = {
-    id: winner.userId,
+    id: winner.id,
     keyName,
     collection,
     amount: winner.finalBalance,
   };
   try {
-    await updateUserArr(winner.userId, "wins", [winner]);
+    await updateUserArr(winner.id, "wins", [winner]);
     await incrementUserData(winnerConfig);
     const updateLosers = losers.map(async (loser, index) => {
       const negativeAmount = -competitionAmount;
       const loserConfig = {
-        id: loser.userId,
+        id: loser.id,
         keyName,
         collection,
         amount: negativeAmount,
       };
-      await updateUserArr(loser.userId, "losses", [loser]);
+      await updateUserArr(loser.id, "losses", [loser]);
       await incrementUserData(loserConfig);
       return { compId: loser.userId, msg: "The losers data has been updated" };
     });
