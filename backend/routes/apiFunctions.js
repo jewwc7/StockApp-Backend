@@ -1,4 +1,5 @@
 const axios = require("axios");
+const { isEqual, isAfter, getTime, add } = require("date-fns");
 
 const { myFunctions } = require("./backendMyFunctions");
 const alpha = require("alphavantage")({ key: `${process.env.Alpha_Key}` });
@@ -13,7 +14,8 @@ async function getQuote(symbol) {
   }
 }
 
-async function getIntraday(symbol) {
+async function getIntradayPractice(symbol) {
+  //oldintraday
   try {
     const intradayPrice = await alpha.data.intraday(
       symbol,
@@ -34,6 +36,129 @@ async function getIntraday(symbol) {
     return { errorMessage: "There was an error", error };
   }
 }
+
+async function getIntraday(symbol) {
+  try {
+    const intradayPrice = await alpha.data.intraday(
+      symbol,
+      "full",
+      null,
+      "15min"
+    );
+    const allDatesArr = []; //multidimensionalArr with prices for each day
+    const keyArr = Object.keys(intradayPrice["Time Series (15min)"]);
+    const valueArr = Object.values(intradayPrice["Time Series (15min)"]);
+    const prices = makePriceObj(keyArr, valueArr).reverse(); //make them oldest date to newst date
+    const splitByDayPrices = splitByDays(prices, allDatesArr);
+    const marketTimes = splitByTime(splitByDayPrices);
+    const companyIntraday = {
+      symbol: intradayPrice["Meta Data"]["2. Symbol"],
+      prices: marketTimes,
+    };
+    return companyIntraday;
+  } catch (error) {
+    console.log({ errorMessage: "There was an error", error });
+    return { errorMessage: "There was an error", error };
+  }
+}
+
+function returnLocalDate(date) {
+  const currentDate = new Date(date);
+  return new Date(currentDate.toLocaleDateString());
+}
+
+function returnCurrentDates(arr, currentDate) {
+  const currentDateArr = [];
+  let nextDate = null;
+  for (let i = 0; i < arr.length; i++) {
+    const stockPrice = arr[i];
+    const stockTimeStamp = returnLocalDate(stockPrice.timestamp);
+    if (isAfter(stockTimeStamp, currentDate)) {
+      nextDate = stockTimeStamp; //if after then make that the next day
+      break;
+    } else currentDateArr.push(stockPrice);
+  }
+  return { currentDateArr, nextDate };
+}
+
+function deleteCurrentDatesPrices(arr, currentDate) {
+  const clonedArr = [...arr]; //cloned
+  for (let i = 0; i < arr.length; i++) {
+    const stockPrice = arr[i];
+    const stockTimeStamp = returnLocalDate(stockPrice.timestamp);
+    if (isEqual(stockTimeStamp, currentDate)) {
+      clonedArr.shift(); //if equal remove that el from the arr
+    } else break; //once here I know i'am at the next date,
+  }
+  return clonedArr;
+}
+
+function splitByDays(arr, allDatesArr) {
+  ////works, maybe write some test, after final array then need to compare if between 9-430
+  const clonedArr = [...arr];
+  //console.log(allDatesArr, "yessir");
+  const currentDate = returnLocalDate(clonedArr[0].timestamp);
+  const currentDates = returnCurrentDates(clonedArr, currentDate);
+  if (currentDates.nextDate) {
+    //if nextDay push currentPrices, then delete them, then rerun this function with newArr(after items deleted)
+    allDatesArr.push(currentDates.currentDateArr); //if nextDay
+    const newArr = deleteCurrentDatesPrices(clonedArr, currentDate);
+    splitByDays(newArr, allDatesArr);
+  }
+  if (!currentDates.nextDate) allDatesArr.push(currentDates.currentDateArr); //if there's not nextDay(end of Arr), push the lastDates prices
+  return allDatesArr;
+}
+
+/////////////////////////////Time//////////////////////////////////////////
+function returnCurrentTimes(arr, start, end) {
+  const timeWithinMarketArr = [];
+  for (let i = 0; i < arr.length; i++) {
+    const stockPrice = arr[i];
+    const stockTimeStamp = new Date(stockPrice.timestamp);
+    const stockTimeStampInMili = getTime(stockTimeStamp);
+    if (isBetween(start, end, stockTimeStampInMili)) {
+      timeWithinMarketArr.push(stockPrice);
+      // nextDate = stockTimeStamp; //if after then make that the next day
+    } else continue;
+  }
+  return timeWithinMarketArr;
+}
+
+function splitByTime(arr) {
+  ////works, maybe write some test, after final array then need to compare if between 9-430
+  const clonedArr = [...arr]; //multidimensionalArr with prices for each day
+  const allDatesArr = [];
+  const Minutes_Until_858AM = 538;
+  const Minutes_Until_405PM = 965;
+  clonedArr.forEach((dateArr, index) => {
+    const currentDate = new Date(returnLocalDate(dateArr[0].timestamp)); //get local date and return date at 12am
+    const startTime = getTime(
+      //market start
+      add(currentDate, {
+        minutes: Minutes_Until_858AM,
+      })
+    );
+    const endTime = getTime(
+      //market end
+      add(currentDate, {
+        minutes: Minutes_Until_405PM,
+      })
+    );
+    const currentDates = returnCurrentTimes(dateArr, startTime, endTime);
+    allDatesArr.push(currentDates);
+  });
+  // console.log(allDatesArr.flat()); //flatten array so now just one
+  return allDatesArr.flat();
+}
+function isBetween(greaterNumber, lessNumber, value) {
+  if (value > greaterNumber && value < lessNumber) {
+    return true;
+  }
+  return false;
+}
+
+//When updating daily price periodically need to, really only need to do this if one of my stocks split
+//1) Add all data to my db, then run function that updates allFUnds up to the date it was created
 
 async function getDaily(symbol) {
   try {
@@ -98,6 +223,4 @@ exports.getIntraday = getIntraday;
 exports.getIntradayCrypto = getIntradayCrypto;
 exports.getCryptoQuote = getCryptoQuote;
 exports.getDaily = getDaily;
-
-//When updating daily price periodically need to, really only need to do this if one of my stocks split
-//1) Add all data to my db, then run function that updates allFUnds up to the date it was created
+exports.getIntradayPractice = getIntradayPractice;

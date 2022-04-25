@@ -45,6 +45,7 @@ const {
   getIntradayCrypto,
   getCryptoQuote,
   getDaily,
+  getIntradayPractice,
 } = require("./apiFunctions");
 const { myFunctions } = require("./backendMyFunctions");
 
@@ -712,8 +713,8 @@ router.post("/determineWinner", async (req, res, err) => {
         id: _id,
         data: { ...competitionClass.data, results: resultsData }, //important only want the data, not the rest of the class. Also adding the results prop forMongo
       };
-      //    await replaceCommunityData(replaceConfig);
-      //  await updateUserRecord(resultsData, competitionClass.amount);
+      await replaceCommunityData(replaceConfig);
+      await updateUserRecord(resultsData, competitionClass.amount);
       return { compId: _id, msg: "This Competition has been updated" };
     });
     const updatedCompetition = await Promise.all(finalBoard);
@@ -1054,6 +1055,29 @@ router.post("/updatefundspractice", async (req, res, err) => {
   }
 });
 
+router.post("/marketonlyPrices", async (req, res, err) => {
+  //return tickers with prices appened
+  const symbols = req.body;
+  let apiCalls = 0;
+  try {
+    const intradayPrices = symbols.map(async (symbol, index) => {
+      ///get quote for each symbol and push into arr
+      const intradayPrice = await getIntradayPractice(symbol);
+      apiCalls = apiCalls + 1;
+      const quoteObject = {
+        ...intradayPrice,
+        updated: new Date(),
+      };
+      return quoteObject;
+    });
+    const data = await Promise.all(intradayPrices);
+    //get current price for today(update daily)
+    res.send(data);
+  } catch (error) {
+    console.log(error);
+    res.status(400).send(error);
+  }
+});
 //////////////////////////////////Test Routes Ends///////////////////////////////////////////
 
 module.exports = router;
