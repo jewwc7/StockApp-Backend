@@ -370,7 +370,6 @@ async function getCommunityData(collection, skipAmount, limit) {
     }
     // let database = await client.db('sample_analytics').collection('customers').find().limit(10); //return the first 10 docuents
     let database = client.db("GainsAndLosses").collection(collection).find();
-
     const customers = await database.toArray(); // make it an array(have to do this to get the objects)
     return customers;
   } catch (error) {
