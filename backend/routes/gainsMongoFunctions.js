@@ -306,7 +306,6 @@ async function updateFundPrice(collection, fund) {
 }
 
 async function updateCompetitionPrices(competition) {
-  console.log(competition.length);
   const arr = [];
   try {
     await client.connect(); //find user by id      //push customer object to array
@@ -315,7 +314,6 @@ async function updateCompetitionPrices(competition) {
       const competitionId = myCompetition._id;
       const { title } = myCompetition;
       const query = { _id: ObjectId(competitionId) };
-      console.log(competition);
       let isUpdatedFund = client
         .db("GainsAndLosses")
         .collection("competitions")

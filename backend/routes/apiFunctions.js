@@ -62,6 +62,7 @@ async function getIntraday(symbol) {
   }
 }
 
+//////////////functions to return only reg market hour prices///////////////
 function returnLocalDate(date) {
   const currentDate = new Date(date);
   return new Date(currentDate.toLocaleDateString());
@@ -128,14 +129,15 @@ function splitByTime(arr) {
   ////works, maybe write some test, after final array then need to compare if between 9-430
   const clonedArr = [...arr]; //multidimensionalArr with prices for each day
   const allDatesArr = [];
-  const Minutes_Until_858AM = 538;
+  s;
+  const Minutes_Until_928AM = 568;
   const Minutes_Until_405PM = 965;
   clonedArr.forEach((dateArr, index) => {
     const currentDate = new Date(returnLocalDate(dateArr[0].timestamp)); //get local date and return date at 12am
     const startTime = getTime(
       //market start
       add(currentDate, {
-        minutes: Minutes_Until_858AM,
+        minutes: Minutes_Until_928AM,
       })
     );
     const endTime = getTime(
@@ -156,6 +158,7 @@ function isBetween(greaterNumber, lessNumber, value) {
   }
   return false;
 }
+//////////////functions to return only reg market hour prices///////////////
 
 //When updating daily price periodically need to, really only need to do this if one of my stocks split
 //1) Add all data to my db, then run function that updates allFUnds up to the date it was created

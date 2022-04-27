@@ -93,7 +93,6 @@ const myFunctions = {
       const dateOfPrice = new Date(dateObject.timestamp);
       if (!isBefore(startDate, dateOfPrice)) {
         //if false that ddate ofPrice before keep going, if it's true, return
-        console.log("Im breaking here", dateObject);
         break;
       }
       pricesWithinStartDate.push(dateObject); //keep loop going, no returns
