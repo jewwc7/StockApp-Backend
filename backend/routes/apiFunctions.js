@@ -129,7 +129,7 @@ function splitByTime(arr) {
   ////works, maybe write some test, after final array then need to compare if between 9-430
   const clonedArr = [...arr]; //multidimensionalArr with prices for each day
   const allDatesArr = [];
-  s;
+
   const Minutes_Until_928AM = 568;
   const Minutes_Until_405PM = 965;
   clonedArr.forEach((dateArr, index) => {

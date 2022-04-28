@@ -36,6 +36,15 @@ async function findUser(user) {
   return data; //if found data will be the object if not found will return null
 }
 
+async function findUserPractice(user) {
+  await client.connect();
+  let data = client
+    .db("GainsAndLosses")
+    .collection("practiceUsers")
+    .findOne({ email: user }, { newPassword: 0 }); //find the user by username
+  return data; //if found data will be the object if not found will return null
+}
+
 async function findUserById(id) {
   id.toString(); //make it a string since mongo id's are strings
   let userId = new ObjectId(id); //have to import ObjectID from mongo require, then put the id as the parameter. This is how you check for ID match
@@ -44,6 +53,22 @@ async function findUserById(id) {
     let data = client
       .db("GainsAndLosses")
       .collection("users")
+      .findOne({ _id: userId }); //find the user by username
+    return data; //if found data will be the object if not found will return null
+  } catch (error) {
+    console.log(error);
+    return false;
+  }
+}
+
+async function findUserByIdPractice(id) {
+  id.toString(); //make it a string since mongo id's are strings
+  let userId = new ObjectId(id); //have to import ObjectID from mongo require, then put the id as the parameter. This is how you check for ID match
+  try {
+    await client.connect();
+    let data = client
+      .db("GainsAndLosses")
+      .collection("practiceUsers")
       .findOne({ _id: userId }); //find the user by username
     return data; //if found data will be the object if not found will return null
   } catch (error) {
@@ -466,3 +491,5 @@ exports.updateUserFunds = updateUserFunds;
 exports.deleteFromUserArrNotId = deleteFromUserArrNotId;
 exports.cloneCollection = cloneCollection;
 exports.setCommunityDataProp = setCommunityDataProp;
+exports.findUserByIdPractice = findUserByIdPractice;
+exports.findUserPractice = findUserPractice;
