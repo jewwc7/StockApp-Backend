@@ -38,6 +38,8 @@ const {
   updateUserFunds,
   cloneCollection,
   setCommunityDataProp,
+  findUser,
+  findUserPractice,
 } = require("./gainsMongoFunctions");
 const {
   getQuote,
@@ -77,6 +79,40 @@ router.post("/addappuser", async (req, res, err) => {
   } catch (error) {
     console.log(error);
     res.status(400).send(error);
+  }
+});
+router.post("/resetpassword", async (req, res, err) => {
+  const tempPassword = `${Math.random()}${today}`;
+  const notFoundMessage = {
+    type: "fail", //or error
+    msg: "That email wasnt found. Try again",
+  };
+  const noEmailMessage = {
+    type: "error",
+    msg: "Please enter password and email",
+    tempPassword,
+  };
+  const { email } = req.body;
+  try {
+    if (!email)
+      return res.send({
+        noEmailMessage,
+      });
+    const user = await findUserPractice(email);
+    if (!user) return res.send(notFoundMessage);
+    return res.send(user);
+    const updateUserConfig = {
+      collection: dBCollectionTypes.practiceUsers,
+      userId: user._id,
+      prop: "tempPassword",
+      data: tempPassword,
+    };
+    updateUser(updateUserConfig); //make it only good for a certain amount of time
+    //sendUserEmail(email, tempPassword, message)
+    // const user = await newUser.add(res);
+  } catch (error) {
+    console.log(error);
+    res.status().send(error);
   }
 });
 
