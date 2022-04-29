@@ -1,8 +1,11 @@
 const express = require("express");
 const alpha = require("alphavantage")({ key: `${process.env.Alpha_Key}` });
 const axios = require("axios");
-const { ObjectId } = require("mongodb"); //don't forget to add the .MongoClient or use destructing example {MongoClient} = require('mongodb');
+const bcrypt = require("bcryptjs");
 
+const { ObjectId } = require("mongodb"); //don't forget to add the .MongoClient or use destructing example {MongoClient} = require('mongodb');
+//const nodemailer = require("nodemailer");
+//let transporter = nodemailer.createTransport();
 let router = express.Router();
 const { validationResult, check } = require("express-validator");
 const isBefore = require("date-fns/isBefore");
@@ -54,6 +57,7 @@ const { myFunctions } = require("./backendMyFunctions");
 const { dBCollectionTypes } = require("./types");
 
 const { Empire, Competition, User } = require("./classes");
+const { add } = require("date-fns");
 const {
   checkIfDupe,
   makePriceObj,
@@ -82,7 +86,13 @@ router.post("/addappuser", async (req, res, err) => {
   }
 });
 router.post("/resetpassword", async (req, res, err) => {
-  const tempPassword = `${Math.random()}${today}`;
+  function getRandomNumber() {
+    const oneMillion = 1000000;
+    const randomNumber = Math.floor(Math.random() * oneMillion);
+    console.log(randomNumber);
+    return randomNumber;
+  }
+  const tempPassword = getRandomNumber().toString(); //can delete string whe readyused to string becuase res thinks it''s a status code if number //bcrypt.genSaltSync(1);
   const notFoundMessage = {
     type: "fail", //or error
     msg: "That email wasnt found. Try again",
@@ -100,19 +110,38 @@ router.post("/resetpassword", async (req, res, err) => {
       });
     const user = await findUserPractice(email);
     if (!user) return res.send(notFoundMessage);
-    return res.send(user);
+    const passwordExpireTime = add(new Date(), {
+      minutes: 30,
+    });
+    const tempPasswordConfig = {
+      //  ip: ip,
+      code: tempPassword, //stopped here use datefn isntead
+      expire_timestamp: passwordExpireTime,
+      created_timestamp: new Date(),
+      verified: false,
+    };
     const updateUserConfig = {
       collection: dBCollectionTypes.practiceUsers,
       userId: user._id,
       prop: "tempPassword",
-      data: tempPassword,
+      data: tempPasswordConfig,
     };
     updateUser(updateUserConfig); //make it only good for a certain amount of time
+    return;
     //sendUserEmail(email, tempPassword, message)
+    const emailMessage = {
+      from: "stockMarketKing@server.com",
+      to: email,
+      subject: "Reset Password Stock Market Kings",
+      text: `Your temporary password is ${tempPassword},`,
+      html: "<p>HTML version of the message</p>",
+    };
+    //send email
+    //make another route to confirm temppassword, check create to,e and code
     // const user = await newUser.add(res);
   } catch (error) {
     console.log(error);
-    res.status().send(error);
+    res.status(400).send(error);
   }
 });
 
