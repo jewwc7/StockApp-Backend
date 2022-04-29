@@ -19,5 +19,12 @@ const responseTypes = {
   fail: "fail",
 };
 
+const DbDocsPropsTypes = {
+  createdFunds: "createdFunds",
+  cashBalance: "cashBalance",
+  fail: "fail",
+};
+
 exports.dBCollectionTypes = dBCollectionTypes;
 exports.responseTypes = responseTypes;
+exports.DbDocsPropsTypes = DbDocsPropsTypes;

@@ -1,14 +1,6 @@
 const express = require("express");
-const { MongoClient, ObjectId } = require("mongodb"); //don't forget to add the .MongoClient or use destructing example {MongoClient} = require('mongodb');
 const dotenv = require("dotenv").config();
-const uri = `mongodb+srv://${process.env.DB_USERNAME}:${process.env.DB_PASSWORD}@cluster0.lz4kl.mongodb.net/myFirstDatabaseretryWrites=true&w=majority`; //getting data for my cluster, will always be used. Used Atlas connect via driver.
-
-const client = new MongoClient(uri, { useUnifiedTopology: true }); //initiating the MongoClient class, this will always be used
 let router = express.Router();
-const { validationResult, check } = require("express-validator");
-const isBefore = require("date-fns/isBefore");
-var isAfter = require("date-fns/isAfter");
-var isEqual = require("date-fns/isEqual");
 const {
   appendTodaysPrice,
   appendCurrentPrice,
@@ -19,63 +11,37 @@ const {
 const {
   updateUser,
   findUserById,
-  addUserToDbAppUsers,
-  updateUserArr,
-  updateCommunityArr,
-  addUsertoCommunityArr,
-  findData,
-  deleteFromUserArr,
-  deleteCollectionDocs,
-  getPriceFromDb,
-  getCommunityData,
-  updateFundPrice,
-  sendtoDB,
-  updateCompetitionPrices,
-  replaceCommunityData,
-  addPropToCommunityData,
-  incrementUserData,
-  getMyFunds,
-  deleteFromUserArrNotId,
-  updateUserFunds,
-  cloneCollection,
+
   setCommunityDataProp,
   findUserByIdPractice,
 } = require("./gainsMongoFunctions");
 const {
-  getQuote,
-  getIntraday,
-  getIntradayCrypto,
-  getCryptoQuote,
-  getDaily,
-  getIntradayPractice,
-} = require("./apiFunctions");
+  dBCollectionTypes,
+  DbDocsPropsTypes,
+  responseTypes,
+} = require("./types");
+
 const { myFunctions } = require("./backendMyFunctions");
 
-const { dBCollectionTypes } = require("./types");
-
-const { Empire, Competition, User } = require("./classes");
-const {
-  checkIfDupe,
-  makePriceObj,
-  isEqualTo,
-  isGreaterThan,
-  getPercentChange,
-  sortArr,
-  isDateBefore,
-  getDatePrices,
-  deleteTickerPrices,
-} = myFunctions;
+const { isGreaterThan } = myFunctions;
 
 router.delete("/bankrupt", async (req, res, err) => {
-  const Not_Bankruput_Amount = 100000;
+  const Not_Bankruput_Amount = 9999;
   const New_Money = 10000;
   const userId = req.body.id;
+  const tryAgainMsg = {
+    message: "Try again",
+    type: responseTypes.fail,
+  };
+  const enoughMoneyMsg = {
+    message: "You have enough money",
+    type: responseTypes.fail,
+  };
   try {
-    const user = await findUserByIdPractice(userId);
-    if (!user) return res.send({ message: "Try again", type: "fail" });
+    const user = await findUserById(userId);
+    if (!user) return res.send(tryAgainMsg);
     const notBankrupt = isGreaterThan(Not_Bankruput_Amount, user.cashBalance);
-    if (notBankrupt)
-      return res.send({ message: "You have enough money", type: "fail" });
+    if (notBankrupt) return res.send(enoughMoneyMsg);
     const { createdFunds } = user;
     if (createdFunds && isGreaterThan(0, createdFunds.length)) {
       await sellAllUserFunds(createdFunds);
@@ -83,15 +49,22 @@ router.delete("/bankrupt", async (req, res, err) => {
     //await promise all above, i
     const cashBalanceConfig = {
       userId: userId,
-      collection: dBCollectionTypes.practiceUsers,
-      prop: "cashBalance",
+      collection: dBCollectionTypes.users,
+      prop: DbDocsPropsTypes.cashBalance,
       data: New_Money,
     };
+    const emptyArrConfig = {
+      userId: userId,
+      collection: dBCollectionTypes.users,
+      prop: DbDocsPropsTypes.createdFunds,
+      data: [],
+    };
+    await updateUser(emptyArrConfig); //empty createdFundsArr
     const updatedUser = await updateUser(cashBalanceConfig); //add money from teh fund to cash balance
-    res.send(updatedUser);
+    res.send("sucess"); //does not control anything, success msg is on front end
   } catch (error) {
     console.log(error);
-    //res.send(error);
+    res.send(tryAgainMsg);
   }
 });
 
@@ -101,7 +74,7 @@ async function sellAllUserFunds(funds) {
     const setCommunityDataPropConfig = {
       fundId: currentFund._id, //sell all users funds
       prop: "sold",
-      collection: dBCollectionTypes.practiceFunds,
+      collection: dBCollectionTypes.funds,
       data: true,
     };
     setCommunityDataProp(setCommunityDataPropConfig);
