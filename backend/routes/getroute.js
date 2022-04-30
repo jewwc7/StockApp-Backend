@@ -161,7 +161,6 @@ router.post("/defaultstocks", async (req, res, err) => {
 
 router.post("/getcommunityfunds", async (req, res, err) => {
   const { skipAmount, limit } = req.body;
-  console.log(skipAmount, limit);
   try {
     const communityFunds = await getCommunityData("funds", skipAmount, limit);
     res.send(communityFunds);
@@ -195,7 +194,6 @@ router.post("/getuserinfo", async (req, res, err) => {
 
 router.post("/getusers", async (req, res, err) => {
   const { skipAmount, limit } = req.body;
-  console.log("yooooo", skipAmount);
   try {
     const fiftyUsers = await getCommunityData("users", skipAmount, limit);
     //will return an empty array if no more data to fetch, logic on what to do on frontend
@@ -263,7 +261,6 @@ router.post("/likedfunds", async (req, res, err) => {
   };
   try {
     const competitionFound = await findData(config);
-    console.log(competitionFound);
     return competitionFound
       ? res.send(competitionFound)
       : console.log("not found");

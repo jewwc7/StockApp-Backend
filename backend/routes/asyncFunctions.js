@@ -59,7 +59,7 @@ async function appendCurrentPrice(arr) {
       const quoteInDb = await getPriceFromDb(collection, symbol);
       if (quoteInDb) {
         //if quote in db return the shareprice
-        console.log(quoteInDb);
+        // console.log(quoteInDb);
         const currentPrice = parseFloat(quoteInDb.sharePrice).toFixed(2);
         const currentPriceObj = {
           value: currentPrice,
@@ -81,7 +81,6 @@ async function appendCurrentPrice(arr) {
       const currentPrice = parseFloat(
         apiQuote["Global Quote"]["05. price"]
       ).toFixed(2);
-      console.log(currentPrice);
       const currentPriceObj = {
         value: currentPrice,
         timestamp: new Date(),
@@ -132,7 +131,6 @@ async function appendIntraDayPrice({ startDate, arr }) {
   const collection = "intraday_prices";
   const updatedInvestors = []; //array where the updated joinedinestors will be pushed
   const updatingInvestors = arr.map(async (investor, index) => {
-    console.log(investor.name);
     const { fundInPlay } = investor;
     const newTickerArr = fundInPlay.tickers.map(async (ticker) => {
       try {

@@ -20,7 +20,6 @@ async function addUserToDbAppUsers(user) {
     console.log("I am dup", isDupe);
     return false;
   } else {
-    console.log("true");
     database.insertOne(user); //if not duplicate insert user to db and return true
     return true;
   }
@@ -293,6 +292,16 @@ async function updateUser({ collection, userId, prop, data }) {
     );
   return dataBase;
 }
+async function deleteUserProp({ collection, userId, prop, data }) {
+  await client.connect(); //find user by id      //push customer object to array
+  const mongoId = ObjectId(userId);
+  const query = { _id: mongoId };
+  let dataBase = client
+    .db("GainsAndLosses")
+    .collection(collection)
+    .findOneAndUpdate(query, { $unset: { prop } }, { returnNewDocument: true });
+  return dataBase;
+}
 
 async function setCommunityDataProp({ collection, fundId, prop, data }) {
   await client.connect(); //find user by id      //push customer object to array
@@ -493,3 +502,4 @@ exports.cloneCollection = cloneCollection;
 exports.setCommunityDataProp = setCommunityDataProp;
 exports.findUserByIdPractice = findUserByIdPractice;
 exports.findUserPractice = findUserPractice;
+exports.deleteUserProp = deleteUserProp;

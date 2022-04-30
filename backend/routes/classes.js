@@ -11,7 +11,12 @@ const {
   getCompetitionReturns,
 } = myFunctions;
 const bcrypt = require("bcryptjs");
-const { addUserToDbAppUsers, findUser } = require("./gainsMongoFunctions");
+const {
+  addUserToDbAppUsers,
+  findUser,
+  updateUser,
+} = require("./gainsMongoFunctions");
+const { dBCollectionTypes, DbDocsPropsTypes } = require("./types");
 const saltRounds = 10;
 
 class Empire {
@@ -168,7 +173,6 @@ class User {
     const user = await findUser(this.email); //find user by email
     if (!user) return res.send(false); //if not correct email reutrn false
     const hashedPassword = user.password;
-    console.log(enteredPassword, hashedPassword); //compare passwords
     return await bcrypt.compare(
       enteredPassword,
       hashedPassword,
@@ -177,6 +181,18 @@ class User {
         if (!result) return res.send(false); //send false
       }
     );
+  }
+  async addPassword(newPassword, res) {
+    bcrypt.hash(newPassword, saltRounds, async (err, hash) => {
+      const updateUserConfig = {
+        collection: dBCollectionTypes.practiceUsers,
+        userId: this.id,
+        prop: DbDocsPropsTypes.password,
+        data: hash,
+      };
+      const user = await updateUser(updateUserConfig); //returns false/null if dupe, reutns true if not dupe
+      return res.send(hash);
+    });
   }
 }
 
