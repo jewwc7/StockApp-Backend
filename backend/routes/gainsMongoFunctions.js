@@ -202,7 +202,6 @@ async function addUsertoCommunityArr({
   arrName,
   data,
 }) {
-  console.log(data);
   //console.log("I am the data", data);
   try {
     await client.connect();
@@ -299,7 +298,11 @@ async function deleteUserProp({ collection, userId, prop, data }) {
   let dataBase = client
     .db("GainsAndLosses")
     .collection(collection)
-    .findOneAndUpdate(query, { $unset: { prop } }, { returnNewDocument: true });
+    .findOneAndUpdate(
+      query,
+      { $unset: { [prop]: "" } },
+      { returnNewDocument: true }
+    );
   return dataBase;
 }
 
@@ -336,6 +339,16 @@ async function updateFundPrice(collection, fund) {
     .db("GainsAndLosses")
     .collection(collection)
     .findOneAndReplace(query, fund);
+  return isUpdatedFund ? true : null;
+}
+
+async function replaceObjectById({ collection, id, newObject }) {
+  const query = { _id: ObjectId(id) };
+  await client.connect(); //find user by id      //push customer object to array
+  let isUpdatedFund = client
+    .db("GainsAndLosses")
+    .collection(collection)
+    .findOneAndReplace(query, newObject);
   return isUpdatedFund ? true : null;
 }
 
@@ -436,6 +449,19 @@ async function incrementUserData({ id, keyName, collection, amount }) {
   return updatedCustomer;
 }
 
+////delete old comps
+async function deleteById({ id, collection }) {
+  id.toString(); //make it a string since mongo id's are strings
+  const query = { _id: ObjectId(id) };
+  await client.connect();
+  let updatedCustomer = client
+    .db("GainsAndLosses")
+    .collection(collection)
+    .findOneAndDelete(query); //find customer by ID
+  console.log("updated");
+  return updatedCustomer;
+}
+
 //replacing user by ID. USerOBject is the replacement document, will also contain the id used for the filter document.
 async function updateUserById(db, collection, userObject) {
   const id = userObject._id; //pulling out the id, do not need to use new OBject ID because I am passing in and already found mongoDB object.
@@ -503,3 +529,5 @@ exports.setCommunityDataProp = setCommunityDataProp;
 exports.findUserByIdPractice = findUserByIdPractice;
 exports.findUserPractice = findUserPractice;
 exports.deleteUserProp = deleteUserProp;
+exports.deleteById = deleteById;
+exports.replaceObjectById = replaceObjectById;

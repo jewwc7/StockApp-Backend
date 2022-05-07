@@ -11,9 +11,11 @@ const {
 const {
   updateUser,
   findUserById,
-
+  deleteCollectionDocs,
   setCommunityDataProp,
   findUserByIdPractice,
+  getCommunityData,
+  deleteById,
 } = require("./gainsMongoFunctions");
 const {
   dBCollectionTypes,
@@ -22,8 +24,9 @@ const {
 } = require("./types");
 
 const { myFunctions } = require("./backendMyFunctions");
+const { differenceInDays } = require("date-fns");
 
-const { isGreaterThan } = myFunctions;
+const { isGreaterThan, isLessThan, hasStarted } = myFunctions;
 
 router.delete("/bankrupt", async (req, res, err) => {
   const Not_Bankruput_Amount = 9999;
@@ -60,7 +63,7 @@ router.delete("/bankrupt", async (req, res, err) => {
       data: [],
     };
     await updateUser(emptyArrConfig); //empty createdFundsArr
-    const updatedUser = await updateUser(cashBalanceConfig); //add money from teh fund to cash balance
+    await updateUser(cashBalanceConfig); //add money from teh fund to cash balance
     res.send("sucess"); //does not control anything, success msg is on front end
   } catch (error) {
     console.log(error);
@@ -80,5 +83,97 @@ async function sellAllUserFunds(funds) {
     setCommunityDataProp(setCommunityDataPropConfig);
   }
 }
+
+router.delete("/stockprices", async (req, res, err) => {
+  try {
+    const deletedDocs = await deleteCollectionDocs(
+      dBCollectionTypes.stockPrices
+    ); //delete prior data
+    res.send(deletedDocs);
+  } catch (error) {
+    console.log(error);
+    res.send(tryAgainMsg);
+  }
+});
+
+router.delete("/defaultstocks", async (req, res, err) => {
+  try {
+    const deletedDocs = await deleteCollectionDocs(
+      dBCollectionTypes.defaultStocks
+    ); //delete prior data
+    res.send(deletedDocs);
+  } catch (error) {
+    console.log(error);
+    res.send(tryAgainMsg);
+  }
+});
+router.delete("/intraday", async (req, res, err) => {
+  try {
+    const deletedDocs = await deleteCollectionDocs(
+      dBCollectionTypes.intraDayPrices
+    ); //delete prior data
+    res.send(deletedDocs);
+  } catch (error) {
+    console.log(error);
+    res.send(tryAgainMsg);
+  }
+});
+
+//delete old comps
+router.delete("/competitions", async (req, res, err) => {
+  try {
+    const oldCompetitionsArr = [];
+    const competitions = await getCommunityData(dBCollectionTypes.competitions);
+    for (let index = 0; index < competitions.length; index++) {
+      const competition = competitions[index];
+      const { ends, _id } = competition;
+      const parsedEnds = new Date(ends);
+      const today = new Date();
+      console.log(differenceInDays(parsedEnds, today));
+      if (isGreaterThan(6, differenceInDays(today, parsedEnds)))
+        //week passed
+        oldCompetitionsArr.push(_id);
+    }
+    oldCompetitionsArr.map(async (_id) => {
+      const deleteConfig = {
+        id: _id,
+        collection: dBCollectionTypes.competitions,
+      };
+      await deleteById(deleteConfig);
+    });
+    const deletedComps = await Promise.all(oldCompetitionsArr);
+    res.send(deletedComps);
+  } catch (error) {
+    console.log(error);
+    res.send(error);
+  }
+});
+
+//delete comps wth only one investor
+router.delete("/singleplayercomp", async (req, res, err) => {
+  try {
+    const singleInvestorArr = [];
+    const competitions = await getCommunityData(dBCollectionTypes.competitions);
+    for (let index = 0; index < competitions.length; index++) {
+      const competition = competitions[index];
+      const { starts, joinedInvestors, _id } = competition;
+      const betStarted = hasStarted(starts);
+      const hasOneInvestor = isLessThan(2, joinedInvestors.length);
+      if (betStarted && hasOneInvestor) singleInvestorArr.push(_id);
+    }
+    singleInvestorArr.map(async (_id) => {
+      const deleteConfig = {
+        id: _id,
+        collection: dBCollectionTypes.competitions,
+      };
+      await deleteById(deleteConfig);
+    });
+    const deletedComps = await Promise.all(singleInvestorArr);
+    res.send(deletedComps);
+  } catch (error) {
+    console.log(error);
+    res.send(error);
+  }
+});
 
 module.exports = router;

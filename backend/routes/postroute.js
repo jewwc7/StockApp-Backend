@@ -85,65 +85,6 @@ router.post("/addappuser", async (req, res, err) => {
     res.status(400).send(error);
   }
 });
-router.post("/resetpassword", async (req, res, err) => {
-  function getRandomNumber() {
-    const oneMillion = 1000000;
-    const randomNumber = Math.floor(Math.random() * oneMillion);
-    console.log(randomNumber);
-    return randomNumber;
-  }
-  const tempPassword = getRandomNumber().toString(); //can delete string whe readyused to string becuase res thinks it''s a status code if number //bcrypt.genSaltSync(1);
-  const notFoundMessage = {
-    type: "fail", //or error
-    msg: "That email wasnt found. Try again",
-  };
-  const noEmailMessage = {
-    type: "error",
-    msg: "Please enter password and email",
-    tempPassword,
-  };
-  const { email } = req.body;
-  try {
-    if (!email)
-      return res.send({
-        noEmailMessage,
-      });
-    const user = await findUserPractice(email);
-    if (!user) return res.send(notFoundMessage);
-    const passwordExpireTime = add(new Date(), {
-      minutes: 30,
-    });
-    const tempPasswordConfig = {
-      //  ip: ip,
-      code: tempPassword, //stopped here use datefn isntead
-      expire_timestamp: passwordExpireTime,
-      created_timestamp: new Date(),
-      verified: false,
-    };
-    const updateUserConfig = {
-      collection: dBCollectionTypes.practiceUsers,
-      userId: user._id,
-      prop: "tempPassword",
-      data: tempPasswordConfig,
-    };
-    updateUser(updateUserConfig); //make it only good for a certain amount of time
-    return;
-    //sendUserEmail(email, tempPassword, message)
-    const emailMessage = {
-      from: "stockMarketKing@server.com",
-      to: email,
-      subject: "Reset Password Stock Market Kings",
-      text: `Your temporary password is ${tempPassword},`,
-      html: "<p>HTML version of the message</p>",
-    };
-    //send email
-    //make another route to confirm temppassword, check create to,e and code
-    // const user = await newUser.add(res);
-  } catch (error) {
-    console.log(error);
-    res.status(400).send(error);
-  }
-});
 
 router.post("/updateProfilePic", async (req, res, err) => {
   console.log("A request has been made");
@@ -190,11 +131,10 @@ router.post("/updateProfilePic", async (req, res, err) => {
 });
 
 router.post("/addtofavorites", async (req, res, err) => {
-  console.log(`A request to add ${req.body.symbol}`);
   const { id, arrName, symbol } = req.body;
   try {
-    const stock = await getQuote(symbol);
-    const addedToFavorites = await updateUserArr(id, arrName, [stock]);
+    //  const stock = await getQuote(symbol);
+    const addedToFavorites = await updateUserArr(id, arrName, [{ symbol }]);
     res.send(addedToFavorites);
   } catch (error) {
     console.log(error);
@@ -325,55 +265,6 @@ router.post("/addcompetition", async (req, res, err) => {
   } catch (error) {
     console.log(error);
     res.status(400).send(error);
-  }
-});
-
-router.post("/updatedefaultstocks", async (req, res, err) => {
-  const communityCollection = dBCollectionTypes.defaultStocks; //use types after confirming everything works
-  const priceInDbCollection = dBCollectionTypes.stockPrices;
-  let apiCallsForPrice = 0;
-  const apiCallPriceArr = [];
-  try {
-    deleteCollectionDocs(communityCollection);
-    const updateDefaultStocks = req.body.map(async (symbol, index) => {
-      symbol.trim();
-      const companyOverview = await getCompanyOverView(symbol);
-      const quoteInDB = await getPriceFromDb(priceInDbCollection, symbol);
-      if (quoteInDB) {
-        return {
-          Symbol: quoteInDB.symbol,
-          currentPrice: quoteInDB.sharePrice,
-          companyOverview,
-          updated: new Date(),
-        };
-      } else {
-        apiCallsForPrice = apiCallsForPrice + 1;
-        apiCallPriceArr.push(symbol);
-        const companyQuote = await getQuote(symbol);
-        return {
-          Symbol: companyQuote["Global Quote"]["01. symbol"],
-          currentPrice: companyQuote["Global Quote"]["05. price"],
-          companyOverview,
-          updated: new Date(),
-        };
-      }
-    });
-    const updatedDefaultStocks = await Promise.all(updateDefaultStocks);
-    const defaultStocksUpdated = await updateCommunityArr(communityCollection, [
-      ...updatedDefaultStocks,
-    ]);
-    const updateSuccessful = isEqualTo("success", defaultStocksUpdated.type);
-    res.send(
-      updateSuccessful
-        ? {
-            msg: `"All done", there were ${apiCallsForPrice} apiCalls for price`,
-            apiCallPriceArr,
-          }
-        : "Update Failed"
-    );
-  } catch (error) {
-    console.log(error);
-    res.status().send(error);
   }
 });
 
@@ -541,7 +432,6 @@ router.post("/deleteinvite", async (req, res, err) => {
 router.post("/likefund", async (req, res, err) => {
   const collection = dBCollectionTypes.funds;
   //req.body has the competitionId and the userId(which is the creatorId)
-  console.log(req.body); //this works just need to match the payload from the front end
   const config = {
     collection,
     competitionId: req.body.fundId,
@@ -600,7 +490,6 @@ router.post("/addBearUser", async (req, res, err) => {
 router.post("/onboardingviewed", async (req, res, err) => {
   const collection = dBCollectionTypes.users;
 
-  console.log(req.body); //this works just need to match the payload from the front end
   const updateUserConfig = {
     collection,
     userId: req.body.id,
@@ -622,7 +511,6 @@ router.post("/addstockprices", async (req, res, err) => {
   const collection = dBCollectionTypes.stockPrices;
   const symbols = req.body;
   try {
-    await deleteCollectionDocs(collection); //delete prior data
     const stocksPrices = symbols.map(async (symbol, index) => {
       const quote = await getQuote(symbol);
       const quoteObject = {
@@ -644,13 +532,60 @@ router.post("/addstockprices", async (req, res, err) => {
   }
 });
 
+router.post("/updatedefaultstocks", async (req, res, err) => {
+  const communityCollection = dBCollectionTypes.defaultStocks; //use types after confirming everything works
+  const priceInDbCollection = dBCollectionTypes.stockPrices;
+  let apiCallsForPrice = 0;
+  const apiCallPriceArr = [];
+  try {
+    const updateDefaultStocks = req.body.map(async (symbol, index) => {
+      symbol.trim();
+      const companyOverview = await getCompanyOverView(symbol);
+      const quoteInDB = await getPriceFromDb(priceInDbCollection, symbol);
+      if (quoteInDB) {
+        return {
+          Symbol: quoteInDB.symbol,
+          currentPrice: quoteInDB.sharePrice,
+          companyOverview,
+          updated: new Date(),
+        };
+      } else {
+        apiCallsForPrice = apiCallsForPrice + 1;
+        apiCallPriceArr.push(symbol);
+        const companyQuote = await getQuote(symbol);
+        return {
+          Symbol: companyQuote["Global Quote"]["01. symbol"],
+          currentPrice: companyQuote["Global Quote"]["05. price"],
+          companyOverview,
+          updated: new Date(),
+        };
+      }
+    });
+    const updatedDefaultStocks = await Promise.all(updateDefaultStocks);
+    const defaultStocksUpdated = await updateCommunityArr(communityCollection, [
+      ...updatedDefaultStocks,
+    ]);
+    const updateSuccessful = isEqualTo("success", defaultStocksUpdated.type);
+    res.send(
+      updateSuccessful
+        ? {
+            msg: `"All done", there were ${apiCallsForPrice} apiCalls for price`,
+            apiCallPriceArr,
+          }
+        : "Update Failed"
+    );
+  } catch (error) {
+    console.log(error);
+    res.status().send(error);
+  }
+});
+
 router.post("/addintradayprices", async (req, res, err) => {
   const symbols = req.body;
 
   const collection = dBCollectionTypes.intraDayPrices;
   let apiCalls = 0;
   try {
-    await deleteCollectionDocs(collection); //delete prior data
     const intradayPrices = symbols.map(async (symbol, index) => {
       ///get quote for each symbol and push into arr
       const intradayPrice = await getIntraday(symbol);
@@ -769,10 +704,9 @@ router.post("/determineWinner", async (req, res, err) => {
           compId: _id,
           msg: "This Competition results were already determined",
         };
-      const finalStanding = competitionClass.getFinalStandings();
+      // const finalStanding = competitionClass.getFinalStandings(); dont need either
       // competitionClass.replaceJoinedInvestors(finalStanding);
       const resultsData = competitionClass.resultsData();
-      console.log(resultsData);
       const replaceConfig = {
         collection: collection,
         id: _id,
@@ -1106,7 +1040,7 @@ router.post("/updatefundspractice", async (req, res, err) => {
       const updatedFund = {
         ...fund, //return the orginal fund, but replace the ticker proprtey with the newTickerArr
         tickers: updatedTickers,
-        updatedDate: today,
+        updatedDate: new Date(),
       };
       updateFundPrice(collection, updatedFund); //find and replace mongo db(by _id)
       return "Updated";

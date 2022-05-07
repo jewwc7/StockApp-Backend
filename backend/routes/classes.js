@@ -16,8 +16,16 @@ const {
   findUser,
   updateUser,
 } = require("./gainsMongoFunctions");
-const { dBCollectionTypes, DbDocsPropsTypes } = require("./types");
+const {
+  dBCollectionTypes,
+  DbDocsPropsTypes,
+  responseTypes,
+} = require("./types");
 const saltRounds = 10;
+const passWordUpdated = {
+  type: responseTypes.success,
+  message: "Password successfully updated",
+};
 
 class Empire {
   constructor(id, name, hedgeFundName, cashBalance, data) {
@@ -185,13 +193,13 @@ class User {
   async addPassword(newPassword, res) {
     bcrypt.hash(newPassword, saltRounds, async (err, hash) => {
       const updateUserConfig = {
-        collection: dBCollectionTypes.practiceUsers,
+        collection: dBCollectionTypes.users,
         userId: this.id,
         prop: DbDocsPropsTypes.password,
         data: hash,
       };
-      const user = await updateUser(updateUserConfig); //returns false/null if dupe, reutns true if not dupe
-      return res.send(hash);
+      const user = await updateUser(updateUserConfig); //returns null if not found, make it through fail msg to front end if null, shouldn't happen but just in case
+      return res.send(passWordUpdated); //write test
     });
   }
 }

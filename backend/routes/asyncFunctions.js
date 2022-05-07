@@ -12,17 +12,27 @@ async function appendTodaysPrice(arr) {
     //always use Promise all when looping
     arr.map(async (element, index) => {
       const { symbol } = element;
+      console.log("append today pircies", element);
       const percentOfFund = element.percentOfFund * 0.01;
       const quoteInDb = await getPriceFromDb(collection, symbol);
       if (quoteInDb) {
         //if quote in db return the shareprice
         let tickerPrice = parseFloat(quoteInDb.sharePrice).toFixed(2);
+        const tickerPriceObj = {
+          value: tickerPrice,
+          timestamp: new Date(),
+        };
+        console.log("append today pircies", tickerPriceObj);
+
         return {
           ...element, //return the orginal element with the purchase price added. Will be the and stay the orginal investment of the fund
           purchasePrice: tickerPrice,
           currentPrice: tickerPrice, //will be updated each day
           amountPurchased: percentOfFund * 1000, //dollars of 1000
-          shares: percentOfFund * parseFloat(quoteInDb.sharePrice).toFixed(2),
+          tickerprices: {
+            symbol,
+            prices: [tickerPriceObj],
+          },
         };
       }
       const quote = await getQuote(symbol); //get quote

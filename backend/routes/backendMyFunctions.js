@@ -1,4 +1,4 @@
-const { isBefore, getDay } = require("date-fns");
+const { isBefore, getDay, isEqual, isAfter } = require("date-fns");
 
 const myFunctions = {
   add: function (a, b) {
@@ -57,6 +57,11 @@ const myFunctions = {
   checkIfDupe: function (arr, condition) {
     if (arr.includes(condition)) return true;
     return false;
+  },
+  getRandomNumber: function (number) {
+    const numberToMultiply = number || 1000000;
+    const randomNumber = Math.floor(Math.random() * numberToMultiply);
+    return randomNumber;
   },
 
   makePriceObj: function (keyArr, valueArr) {
@@ -182,6 +187,14 @@ const myFunctions = {
       return myReturns.push({ value: initalInvestment, timestamp });
     });
     return myReturns;
+  },
+  hasStarted: function (dateChecking) {
+    const today = new Date();
+    const start = new Date(dateChecking);
+    if (isEqual(today, start) || isAfter(today, start)) {
+      return true;
+    }
+    return false;
   },
 };
 

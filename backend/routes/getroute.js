@@ -81,7 +81,7 @@ router.post("/singlestock", async (req, res, err) => {
   const localYesterday = yesterday.toLocaleDateString();
   const { Symbol } = req.body;
   if (!Symbol) Symbol = "AAPL";
-  console.log(`${req.body.firstName} requested ${Symbol}`);
+  console.log(`${Symbol} requested`);
   try {
     const intradayPriceInDb = await getPriceFromDb(priceInDbCollection, Symbol);
     const companyOverviewRequest = await axios.get(

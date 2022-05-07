@@ -22,7 +22,8 @@ const responseTypes = {
 const DbDocsPropsTypes = {
   createdFunds: "createdFunds",
   cashBalance: "cashBalance",
-  fail: "fail",
+  tempPasscode: "tempPasscode",
+  password: "password",
 };
 
 exports.dBCollectionTypes = dBCollectionTypes;
