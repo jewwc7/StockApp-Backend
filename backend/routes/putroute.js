@@ -79,7 +79,7 @@ router.put("/resetpassword", async (req, res, err) => {
     updateUser(updateUserConfig);
     //sendUserEmail(email, tempPassword, message)
     const emailMessage = {
-      from: "smarketkings.com",
+      from: "Stock Market Kings <mailgun@smarketkings.com>",
       to: email, //user email  //can also use array if myltiple ?     to: ["test@example.com"],
       subject: "Reset Your Password",
       text: `Please enter this passcode on verify screen ${tempPassword}`,
@@ -159,9 +159,6 @@ router.put("/newpassword", async (req, res, err) => {
   }
 });
 
-
-
-
-  ///////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////
 
 module.exports = router;
