@@ -178,7 +178,7 @@ const myFunctions = {
       if (index === 0) {
         //if at start compare index 0 and 1
         const secondPrice = stockPrices[index + 1].value;
-        initalInvestment = initalInvestment * (value / secondPrice);
+        initalInvestment = initalInvestment * (secondPrice / value);
         return myReturns.push({ value: initalInvestment, timestamp });
       }
       if (index === 1) return; //don't need to compare index 1 as above code does it
