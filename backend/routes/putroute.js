@@ -27,7 +27,7 @@ const { add, isAfter } = require("date-fns");
 const { isEqualTo, getRandomNumber } = myFunctions;
 
 const notFoundMessage = {
-  type: "fail", //or error
+  type: responseTypes.fail,
   message: "That email wasnt found. Try again",
 };
 const noEmailMessage = {
@@ -159,9 +159,6 @@ router.put("/newpassword", async (req, res, err) => {
   }
 });
 
-
-
-
-  ///////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////
 
 module.exports = router;

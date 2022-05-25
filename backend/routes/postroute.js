@@ -54,7 +54,11 @@ const {
 } = require("./apiFunctions");
 const { myFunctions } = require("./backendMyFunctions");
 
-const { dBCollectionTypes } = require("./types");
+const { dBCollectionTypes, responseTypes } = require("./types");
+const tryAgainResponse = {
+  type: responseTypes.error,
+  message: "Something went wrong try again",
+};
 
 const { Empire, Competition, User } = require("./classes");
 const { add } = require("date-fns");
@@ -127,6 +131,52 @@ router.post("/updateProfilePic", async (req, res, err) => {
   } catch (error) {
     console.log(error);
     res.status(400).send(error);
+  }
+});
+
+//this works just make switch collection and paste to aws,
+//to test paste a new comp in practice comp and send request to change from front end
+router.post("/userUpdatedCompFund", async (req, res, err) => {
+  console.log("A request has been made");
+  const collection = dBCollectionTypes.competitions;
+  const { userId, compId, newFund } = req.body;
+  const compDataConfig = {
+    collection,
+    id: compId,
+  };
+
+  try {
+    const competition = await findData(compDataConfig); //get competition
+    if (!competition) return res.send(tryAgainResponse);
+    const { joinedInvestors } = competition;
+    const user = joinedInvestors.filter(
+      (investor) => investor.userId === userId
+    )[0]; //get user
+    deleteTickerPrices(newFund); //need to reset ticker prices to 0
+    const userWithNewFund = {
+      ...user,
+      fundInPlay: newFund,
+    };
+    const otherInvestors = joinedInvestors.filter(
+      (investor) => investor.userId !== userId
+    ); //sepearate other investors
+    otherInvestors.push(userWithNewFund);
+    console.log(userWithNewFund);
+    console.log("yoooo", otherInvestors);
+    const updateCommunityDataConfig = {
+      collection: dBCollectionTypes.competitions,
+      id: compId,
+      prop: "joinedInvestors",
+      data: otherInvestors, //new joinedinvestors with updated user pushed
+    };
+    await addPropToCommunityData(updateCommunityDataConfig);
+    return res.send({
+      type: responseTypes.success,
+      message: "Fund Updated",
+    });
+  } catch (error) {
+    console.log(error);
+    res.status(400).send("error");
   }
 });
 
