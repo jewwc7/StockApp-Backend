@@ -11,8 +11,9 @@ const cors = require("cors");
 
 app.use(cors());
 app.use("/", (req, res, next, err) => {
-  console.log(req.body);
-  res.send("It Worked!!!!");
+  res.send("check for issues, went through first route!!!!");
+  console.log("check for issues, went through first route!!!!");
+
   next();
 });
 app.use("/", getRouter);

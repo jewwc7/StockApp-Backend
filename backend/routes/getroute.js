@@ -22,6 +22,7 @@ var sub = require("date-fns/sub");
 const { myFunctions } = require("./backendMyFunctions");
 const { User } = require("./classes");
 const { dBCollectionTypes } = require("./types");
+const { getDaily } = require("./apiFunctions");
 const {
   checkIfDupe,
   getPercentChange,
@@ -73,6 +74,60 @@ router.post("/asynclogin", async (req, res, err) => {
   }
 }); */
 
+router.post("/singlestockV2", async (req, res, err) => {
+  const priceInDbCollection = dBCollectionTypes.dailyPrices;
+  const today = new Date();
+  const yesterday = sub(today, { days: checkIfSundayOrMonday() }); //Sunday/monday need to get fridays date, not yesterday
+  today.toDateString();
+  const localYesterday = yesterday.toLocaleDateString();
+  const { Symbol } = req.body;
+  if (!Symbol) Symbol = "AAPL";
+  console.log(`${Symbol} requested by `);
+  try {
+    const dailyPriceInDb = await getPriceFromDb(priceInDbCollection, Symbol);
+    const companyOverviewRequest = await axios.get(
+      //will be getCompanyOverView(Symbol), 1 for sure call
+      `https://www.alphavantage.co/query?function=OVERVIEW&symbol=${Symbol}&apikey=${process.env.Alpha_Key}`
+    );
+    const companyOverview = await companyOverviewRequest.data; //can delete
+    ////if going with priceFromDB out if stmnt, if not do the below
+    if (dailyPriceInDb) {
+      const prices = [...dailyPriceInDb.prices];
+      const firstPrice = prices[0].value;
+      const lastPrice = prices[prices.length - 1].value;
+      const percentChange = getPercentChange(firstPrice, lastPrice);
+      const stockObj = {
+        Symbol: dailyPriceInDb.symbol,
+        currentPrice: lastPrice,
+        percentChange,
+        companyOverview,
+        prices, //all prices, array
+      };
+      res.send(stockObj);
+      return;
+    } else {
+      //make API
+      const apiDailyPrice = await getDaily(Symbol);
+      const prices = [...apiDailyPrice.prices];
+      const firstPrice = prices[0].value;
+      const lastPrice = prices[prices.length - 1].value;
+      const percentChange = getPercentChange(firstPrice, lastPrice);
+      const stockObj = {
+        Symbol: apiDailyPrice.symbol,
+        currentPrice: lastPrice,
+        percentChange,
+        companyOverview,
+        prices, //all prices, array
+      };
+
+      res.send(stockObj);
+    }
+  } catch (error) {
+    console.log(error);
+    res.status(400).send(error);
+  }
+});
+
 router.post("/singlestock", async (req, res, err) => {
   const priceInDbCollection = "intraday_prices";
   const today = new Date();
@@ -102,6 +157,7 @@ router.post("/singlestock", async (req, res, err) => {
         percentChange,
         companyOverview,
         mostCurrentPrices, //all prices, array
+        prices, //all prices, array
       };
       res.send(stockObj);
       return;
@@ -128,6 +184,7 @@ router.post("/singlestock", async (req, res, err) => {
         companyOverview,
         mostCurrentPrices, //all prices, array
       };
+
       res.send(stockObj);
     }
   } catch (error) {

@@ -27,6 +27,10 @@ const { myFunctions } = require("./backendMyFunctions");
 const { differenceInDays } = require("date-fns");
 
 const { isGreaterThan, isLessThan, hasStarted } = myFunctions;
+const tryAgainResponse = {
+  type: responseTypes.error,
+  message: "Something went wrong try again",
+};
 
 router.delete("/bankrupt", async (req, res, err) => {
   const Not_Bankruput_Amount = 9999;
@@ -92,7 +96,7 @@ router.delete("/stockprices", async (req, res, err) => {
     res.send(deletedDocs);
   } catch (error) {
     console.log(error);
-    res.send(tryAgainMsg);
+    res.send(tryAgainResponse);
   }
 });
 
@@ -104,7 +108,19 @@ router.delete("/defaultstocks", async (req, res, err) => {
     res.send(deletedDocs);
   } catch (error) {
     console.log(error);
-    res.send(tryAgainMsg);
+    res.send(tryAgainResponse);
+  }
+});
+
+router.delete("/dailyPrices", async (req, res, err) => {
+  try {
+    const deletedDocs = await deleteCollectionDocs(
+      dBCollectionTypes.dailyPrices
+    ); //delete prior data
+    res.send(deletedDocs);
+  } catch (error) {
+    console.log(error);
+    res.send(tryAgainResponse);
   }
 });
 router.delete("/intraday", async (req, res, err) => {
@@ -115,7 +131,7 @@ router.delete("/intraday", async (req, res, err) => {
     res.send(deletedDocs);
   } catch (error) {
     console.log(error);
-    res.send(tryAgainMsg);
+    res.send(tryAgainResponse);
   }
 });
 
@@ -145,7 +161,7 @@ router.delete("/competitions", async (req, res, err) => {
     res.send(deletedComps);
   } catch (error) {
     console.log(error);
-    res.send(error);
+    res.send(tryAgainResponse);
   }
 });
 
@@ -172,7 +188,7 @@ router.delete("/singleplayercomp", async (req, res, err) => {
     res.send(deletedComps);
   } catch (error) {
     console.log(error);
-    res.send(error);
+    res.send(tryAgainResponse);
   }
 });
 

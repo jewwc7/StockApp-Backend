@@ -11,6 +11,7 @@ const dBCollectionTypes = {
   practiceUsers: "practiceUsers",
   tweets: "tweets",
   backUpCompetitions: "backupCompetitions",
+  dailyPrices: "dailyPrices",
 };
 
 const responseTypes = {

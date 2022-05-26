@@ -630,6 +630,28 @@ router.post("/updatedefaultstocks", async (req, res, err) => {
   }
 });
 
+router.post("/dailyPrices", async (req, res, err) => {
+  const collection = dBCollectionTypes.dailyPrices;
+  const symbols = req.body;
+  try {
+    const stocksPrices = symbols.map(async (symbol, index) => {
+      const dailyPrice = await getDaily(symbol);
+      return dailyPrice ? dailyPrice : null;
+    });
+    const stockPrices = await Promise.all(stocksPrices);
+    const finalStockPrices = stockPrices.filter(Boolean);
+    const pricesUpdated = await updateCommunityArr(
+      collection,
+      finalStockPrices
+    );
+    const updateSuccessful = isEqualTo("success", pricesUpdated.type);
+    res.send(updateSuccessful ? "Update Successful" : "Update Failed");
+  } catch (error) {
+    console.log(error);
+    res.send(error);
+  }
+});
+
 router.post("/addintradayprices", async (req, res, err) => {
   const symbols = req.body;
 
